@@ -19,13 +19,14 @@ por `http://` o `https://` (por ejemplo, un hosting como GitHub Pages). Hasta
 que eso no pase, la app anda igual, solo que sin instalación ni caché offline.
 
 Para probar el service worker en tu PC sin publicar nada, podés levantar un
-servidor local desde esta carpeta:
+servidor local desde esta carpeta con Node (sin dependencias):
 
 ```
-python -m http.server 8000
+node scripts/dev-server.js
 ```
 
-y abrir `http://localhost:8000/index.html`.
+y abrir `http://localhost:5173/index.html`. (También funciona
+`python -m http.server 8000` si preferís Python.)
 
 ## Estructura de archivos
 
@@ -58,15 +59,36 @@ tests/                Tests automáticos (Node, sin dependencias)
 
 ## Tests automáticos
 
-La lógica pura (cálculo de días para un cumpleaños, distancia GPS, formato
-de tiempo, mensajes de error de ubicación) vive en `logic.js` y tiene tests
-en `tests/`. Para correrlos, con [Node.js](https://nodejs.org) instalado:
+Hay dos niveles de tests:
 
-```
-npm test
-```
+- **Lógica pura** (`tests/*.test.js`): cálculo de días para un cumpleaños,
+  distancia GPS, formato de tiempo, mensajes de error de ubicación —
+  vive en `logic.js`, sin DOM, sin dependencias. Se corre con:
 
-No hace falta instalar nada más (no usan ninguna dependencia externa).
+  ```
+  npm test
+  ```
+
+- **UI de punta a punta** (`tests/ui/*.spec.js`, con
+  [Playwright](https://playwright.dev)): abre la app en un navegador de
+  verdad y prueba los flujos completos — tildar y persistir el checklist,
+  el reinicio diario, agregar/editar/borrar tareas de la rutina, cumpleaños
+  y biblioteca (con sus confirmaciones), navegación por teclado de las
+  pestañas, y la pantalla de error si algo falla al cargar. Requiere
+  instalar el navegador una vez (`npx playwright install chromium`) y
+  correrse con:
+
+  ```
+  npm run test:ui
+  ```
+
+  Estos tests levantan su propio servidor local (`scripts/dev-server.js`,
+  sin dependencias) y bloquean las llamadas a fuentes/mapa externos para no
+  depender de la conexión a internet.
+
+`npm run test:all` corre ambos. El hook de pre-commit solo corre `npm test`
+(la lógica pura, rápida) — los de UI son más lentos y se corren a mano
+cuando conviene.
 
 Hay un hook de pre-commit (versionado en `.githooks/`, no en `.git/hooks/`
 que no viaja con el repo) que corre `npm test` antes de cada commit y lo
@@ -132,6 +154,13 @@ El proyecto avanza por niveles definidos junto con el usuario:
   día/pestaña (que le da identidad a cada día). La pestaña activa quedó
   con una mejora parcial (sombra de texto) sin garantizar 4.5:1 en todos
   los días, como trade-off consciente para no tocar esa paleta compartida.
+
+- **Nivel 8** — navegación por teclado completa en las pestañas (flechas
+  mueven y activan, Home/End van a los extremos, patrón ARIA estándar de
+  tabs). Pantalla de error amigable si algo falla al cargar (en vez de
+  pantalla en blanco). Primeros tests de UI de punta a punta con
+  Playwright (`tests/ui/`), cubriendo checklist, rutina, cumpleaños,
+  biblioteca y la navegación por teclado nueva.
 
 Publicar en un hosting público (GitHub Pages u otro) queda para una etapa
 posterior, a criterio del usuario — el sitio contiene datos personales reales

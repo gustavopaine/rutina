@@ -14,8 +14,47 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <link rel="stylesheet" href="styles.css">
+<style>
+  /* Estilos de emergencia, independientes de styles.css: si ese archivo
+     también falla en cargar, este aviso igual se tiene que ver bien. */
+  #fatalError{ display:none; position:fixed; inset:0; background:rgba(255,248,238,0.97); align-items:center; justify-content:center; z-index:9999; padding:24px; font-family:sans-serif; }
+  #fatalError:not([hidden]){ display:flex; }
+  #fatalError .fatal-error-card{ background:#fff; border-radius:20px; padding:28px 24px; max-width:340px; text-align:center; box-shadow:0 12px 30px rgba(0,0,0,0.2); }
+  #fatalError .fatal-error-emoji{ font-size:40px; margin-bottom:8px; }
+  #fatalError .fatal-error-title{ font-size:18px; font-weight:700; color:#4A3B47; margin-bottom:8px; }
+  #fatalError .fatal-error-text{ font-size:14px; color:#4A3B47; margin-bottom:16px; line-height:1.4; }
+  #fatalError button{ font-size:14px; font-weight:700; padding:10px 20px; border-radius:12px; border:none; background:#FF8A3D; color:#fff; cursor:pointer; }
+</style>
+<script>
+  // Red de seguridad: si algo de la app falla al cargar (un archivo que
+  // no llega, un error temprano), muestra un aviso claro en vez de dejar
+  // la pantalla en blanco. Corre antes que logic.js/app.js y no depende
+  // de que ellos carguen bien.
+  (function(){
+    function showFatalError(){
+      var el = document.getElementById('fatalError');
+      if (el) el.hidden = false;
+    }
+    window.addEventListener('error', function(ev){
+      if (ev && ev.filename && /\/(logic|app)\.js/.test(ev.filename)) showFatalError();
+    }, true);
+    window.addEventListener('load', function(){
+      setTimeout(function(){
+        if (!window.__appBooted) showFatalError();
+      }, 6000);
+    });
+  })();
+</script>
 </head>
 <body>
+<div id="fatalError" hidden role="alert">
+  <div class="fatal-error-card">
+    <div class="fatal-error-emoji" aria-hidden="true">😕</div>
+    <div class="fatal-error-title">Algo no cargó bien</div>
+    <div class="fatal-error-text">Probá recargar la página. Si sigue sin andar, avisale a quien te ayudó a instalar la app.</div>
+    <button type="button" onclick="location.reload()">🔄 Recargar</button>
+  </div>
+</div>
 <div class="stage-scene" aria-hidden="true">
   <svg viewBox="0 0 700 340" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" preserveAspectRatio="xMidYMin slice">
     <defs>

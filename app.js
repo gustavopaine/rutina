@@ -454,6 +454,9 @@ function renderTabs(){
     btn.setAttribute('role', 'tab');
     btn.setAttribute('aria-selected', key===current ? 'true' : 'false');
     btn.setAttribute('aria-controls', 'dayContent');
+    // Roving tabindex: Tab entra una sola vez al grupo (en la pestaña
+    // activa); dentro del grupo se navega con las flechas.
+    btn.tabIndex = key===current ? 0 : -1;
     const [c1, c2] = DAY_COLORS[key];
     if (key === 'cumples'){
       btn.className = 'tab bdaytab' + (key===current?' active':'');
@@ -484,6 +487,26 @@ function renderTabs(){
     tabs.appendChild(btn);
   });
 }
+
+// Navegación por teclado del grupo de pestañas (patrón ARIA de tabs):
+// flechas izq/der mueven y activan, Home/End van al extremo. El listener
+// se agrega una sola vez sobre el contenedor, que no se recrea entre
+// renders (solo se reemplaza su innerHTML).
+document.getElementById('tabs').addEventListener('keydown', (ev) => {
+  const KEYS = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+  if (!KEYS.includes(ev.key)) return;
+  const tabButtons = [...document.querySelectorAll('#tabs [role="tab"]')];
+  const idx = tabButtons.indexOf(document.activeElement);
+  if (idx === -1) return;
+  ev.preventDefault();
+  let newIdx = idx;
+  if (ev.key === 'ArrowRight') newIdx = (idx + 1) % tabButtons.length;
+  else if (ev.key === 'ArrowLeft') newIdx = (idx - 1 + tabButtons.length) % tabButtons.length;
+  else if (ev.key === 'Home') newIdx = 0;
+  else if (ev.key === 'End') newIdx = tabButtons.length - 1;
+  tabButtons[newIdx].click();
+  document.querySelector('#tabs [role="tab"][aria-selected="true"]')?.focus();
+});
 
 async function renderBirthdays(){
   await loadBirthdays();
@@ -1152,6 +1175,7 @@ function renderDay(){
 
 renderTabs();
 renderDay();
+window.__appBooted = true;
 
 // Notas musicales flotando de fondo
 const NOTE_EMOJIS = ['🎵','🎶','🎸','🥁','✨'];
