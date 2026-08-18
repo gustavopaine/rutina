@@ -119,6 +119,19 @@ El proyecto avanza por niveles definidos junto con el usuario:
   pestaña de Caminata — antes se perdía todo. Si el guardado en el
   navegador falla (espacio lleno, modo privado), ahora aparece un aviso
   visible en pantalla en vez de quedar solo en la consola.
+- **Nivel 7** — se probó el tracking de caminata en vivo con GPS simulado
+  de punta a punta (nunca se había probado el trackeo real, solo el
+  guardado de datos): iniciar, acumular distancia/pasos, detectar el
+  cambio a modo vehículo y guardar la sesión, todo funcionó. Los anuncios
+  para lectores de pantalla ahora son puntuales (avisan la tarea tildada y
+  el progreso) en vez de releer todo el panel del día en cada toque. Se
+  auditó el contraste de color (WCAG AA) y se encontraron fallas graves en
+  varios elementos chicos/funcionales (etiquetas de categoría, número de
+  progreso, botones principales de Caminata/Biblioteca/Cumpleaños) — se
+  oscurecieron esos casos puntuales sin tocar la paleta de colores por
+  día/pestaña (que le da identidad a cada día). La pestaña activa quedó
+  con una mejora parcial (sombra de texto) sin garantizar 4.5:1 en todos
+  los días, como trade-off consciente para no tocar esa paleta compartida.
 
 Publicar en un hosting público (GitHub Pages u otro) queda para una etapa
 posterior, a criterio del usuario — el sitio contiene datos personales reales

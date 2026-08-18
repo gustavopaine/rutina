@@ -65,6 +65,16 @@ body{
 }
 .wrap{max-width:560px;margin:0 auto;position:relative; z-index:1;}
 
+.sr-only{
+  position:absolute;
+  width:1px; height:1px;
+  padding:0; margin:-1px;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  white-space:nowrap;
+  border:0;
+}
+
 .note{
   position:fixed;
   pointer-events:none;
@@ -192,6 +202,12 @@ h1 span{
   color:#fff;
   box-shadow:var(--shadow);
   transform:translateY(-3px) scale(1.04);
+  /* Mejora parcial de legibilidad: el fondo usa el color propio de cada
+     día, que en algunos casos no llega a 4.5:1 con texto blanco. Tocar
+     esos colores afectaría la identidad de cada día en toda la app
+     (banner, barra de progreso, etc.), así que quedó fuera del arreglo
+     de "solo lo grave" — esto ayuda pero no lo garantiza en todos los días. */
+  text-shadow:0 1px 3px rgba(0,0,0,0.45);
 }
 .tab.bdaytab{ background:#F2E7FF; color:var(--violet-deep); }
 
@@ -234,7 +250,7 @@ h1 span{
   width:0%; transition:width .25s ease; border-radius:8px;
 }
 @keyframes fillShine{ 0%{background-position:0% 0%;} 100%{background-position:200% 0%;} }
-.progress-label{ font-family:'Baloo 2', sans-serif; font-weight:800; font-size:13px; white-space:nowrap; }
+.progress-label{ font-family:'Baloo 2', sans-serif; font-weight:800; font-size:13px; white-space:nowrap; color:var(--ink); }
 
 .block{
   background:var(--card);
@@ -432,7 +448,9 @@ h1 span{
   font-weight:800; font-size:14.5px;
   padding:12px; border:none; border-radius:12px;
   color:#fff; cursor:pointer;
-  background:linear-gradient(120deg, var(--violet), var(--pink));
+  /* Oscurecido respecto de --violet/--pink: los tonos claros no llegan
+     al contraste mínimo (4.5:1) con texto blanco encima. */
+  background:linear-gradient(120deg, #8058F1, #E11B77);
 }
 .bday-add-btn:active{ transform:scale(0.98); }
 .bday-add-btn:focus-visible{ outline:2.5px solid var(--ink); outline-offset:2px; }
@@ -528,13 +546,15 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
   color:#fff;
   cursor:pointer;
   box-shadow:var(--shadow);
-  background:linear-gradient(120deg, var(--teal), var(--teal-deep));
+  /* Oscurecido: --teal/--teal-deep no llegan a 4.5:1 con blanco. */
+  background:linear-gradient(120deg, #188577, #0F8576);
   margin-bottom:16px;
   transition:transform .15s ease;
 }
 .walk-btn:active{ transform:scale(0.98); }
 .walk-btn:focus-visible{ outline:2.5px solid var(--ink); outline-offset:2px; }
-.walk-btn.stop{ background:linear-gradient(120deg, var(--pink), var(--pink-deep)); }
+/* Oscurecido: --pink/--pink-deep no llegan a 4.5:1 con blanco. */
+.walk-btn.stop{ background:linear-gradient(120deg, #E40068, #E11B77); }
 
 .walk-history-title{
   font-family:'Baloo 2', sans-serif; font-weight:800; font-size:14px;
@@ -634,7 +654,8 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
   border-radius:12px;
   color:#fff;
   cursor:pointer;
-  background:linear-gradient(120deg, var(--violet), var(--violet-deep));
+  /* Oscurecido: --violet/--violet-deep no llegan a 4.5:1 con blanco. */
+  background:linear-gradient(120deg, #8058F1, #805CE7);
 }
 .lib-add-btn:active{ transform:scale(0.98); }
 .lib-add-btn:focus-visible{ outline:2.5px solid var(--ink); outline-offset:2px; }

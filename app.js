@@ -164,6 +164,12 @@ const DEFAULT_DATA = {
 const ORDER = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
 const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage } = window.RutinaLogic;
 
+// ---- Anuncios puntuales para lectores de pantalla (no releer todo el panel) ----
+function announce(message){
+  const el = document.getElementById('srAnnouncer');
+  if (el) el.textContent = message;
+}
+
 // ---- Aviso visible si falla un guardado (antes quedaba solo en la consola) ----
 let saveErrorTimeout = null;
 function showSaveError(message){
@@ -284,14 +290,17 @@ function deleteRoutineItem(dayKey, blockIdx, itemId){
 let current = todayKey(new Date(), ORDER);
 
 // ---- Cumpleaños (mismos datos que la rutina de Lara) ----
+// Versiones oscurecidas de los colores de categoría: los tonos pastel
+// originales no llegan al contraste mínimo (WCAG AA 4.5:1) con texto
+// blanco encima en los tags chicos. Mismo tono, más oscuro.
 const CAT_COLOR = {
-  "Familia":"#FF4FA0",
-  "Hermano/a":"#FF7A3D",
-  "Sobrino/a":"#3ADEC0",
-  "Bisabuela":"#8B6BFF",
-  "Abuela":"#8B6BFF",
-  "Tío/a":"#FFC145",
-  "Primo/a":"#3ADEC0",
+  "Familia":"#E40068",
+  "Hermano/a":"#D64300",
+  "Sobrino/a":"#16836F",
+  "Bisabuela":"#7B57FF",
+  "Abuela":"#7B57FF",
+  "Tío/a":"#A16B00",
+  "Primo/a":"#16836F",
 };
 const DEFAULT_BIRTHDAYS = [
   {name:"Verónica", day:19, month:8, cat:"Familia"},
@@ -1037,7 +1046,7 @@ function renderDay(){
 
   const progWrap = document.createElement('div');
   progWrap.className = 'progress-wrap';
-  progWrap.innerHTML = `<div class="progress-track"><div class="progress-fill" id="progFill" style="background:linear-gradient(90deg, ${c1}, ${c2}, ${c1});"></div></div><div class="progress-label" id="progLabel" style="color:${c1}">0/0</div>`;
+  progWrap.innerHTML = `<div class="progress-track"><div class="progress-fill" id="progFill" style="background:linear-gradient(90deg, ${c1}, ${c2}, ${c1});"></div></div><div class="progress-label" id="progLabel">0/0</div>`;
   wrap.appendChild(progWrap);
 
   day.blocks.forEach((block, bIdx) => {
@@ -1088,6 +1097,8 @@ function renderDay(){
         else { state[dayKey].delete(item.id); }
         saveCheckState();
         renderDay();
+        const progressText = document.getElementById('progLabel')?.textContent || '';
+        announce(`${checked ? 'Tarea marcada como hecha' : 'Tarea desmarcada'}: ${item.t}. Progreso ${progressText}.`);
       });
       row.querySelector('.item-edit-btn').addEventListener('click', (ev) => {
         ev.preventDefault(); ev.stopPropagation();
