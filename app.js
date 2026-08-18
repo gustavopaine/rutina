@@ -162,7 +162,7 @@ const DEFAULT_DATA = {
 };
 
 const ORDER = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
-const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage } = window.RutinaLogic;
+const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml } = window.RutinaLogic;
 
 // ---- Anuncios puntuales para lectores de pantalla (no releer todo el panel) ----
 function announce(message){
@@ -527,8 +527,8 @@ async function renderBirthdays(){
     const countdownTxt = next.diff === 0 ? '¡No te olvides de saludar!' : (next.diff === 1 ? 'Faltan 1 día' : `Faltan ${next.diff} días`);
     hero.innerHTML = `
       <div class="eyebrow">Próximo cumpleaños</div>
-      <div class="who">${next.name}</div>
-      <div class="when">${whenTxt} · ${next.cat}</div>
+      <div class="who">${escapeHtml(next.name)}</div>
+      <div class="when">${whenTxt} · ${escapeHtml(next.cat)}</div>
       <div class="countdown">⏰ ${countdownTxt}</div>
     `;
     wrap.appendChild(hero);
@@ -610,13 +610,13 @@ async function renderBirthdays(){
     row.innerHTML = `
       <div class="bday-date">${b.day}</div>
       <div class="bday-info">
-        <div class="bday-name">${b.name}</div>
-        <span class="bday-tag" style="background:${color}">${b.cat}</span>
+        <div class="bday-name">${escapeHtml(b.name)}</div>
+        <span class="bday-tag" style="background:${color}">${escapeHtml(b.cat)}</span>
       </div>
       <div class="bday-days">${daysTxt}</div>
       <div class="bday-actions">
-        <button class="bday-edit" aria-label="Editar ${b.name}">✏️</button>
-        <button class="bday-del" aria-label="Borrar ${b.name}">✕</button>
+        <button class="bday-edit" aria-label="Editar ${escapeHtml(b.name)}">✏️</button>
+        <button class="bday-del" aria-label="Borrar ${escapeHtml(b.name)}">✕</button>
       </div>
     `;
     row.querySelector('.bday-edit').onclick = () => fillBirthdayForm(b);
@@ -954,15 +954,15 @@ function renderLibraryItems(){
     const row = document.createElement('div');
     row.className = 'lib-item';
     row.innerHTML = `
-      <a href="${item.url}" target="_blank" rel="noopener">
+      <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">
         <div class="lib-item-icon">${LIB_TYPE_ICON[item.type] || '🎵'}</div>
         <div class="lib-item-info">
-          <div class="lib-item-title">${item.title}</div>
+          <div class="lib-item-title">${escapeHtml(item.title)}</div>
           <div class="lib-item-type">${LIB_TYPE_LABEL[item.type] || 'Música'}</div>
         </div>
       </a>
-      <button class="lib-edit" data-id="${item.id}" aria-label="Editar ${item.title}">✏️</button>
-      <button class="lib-del" data-id="${item.id}" aria-label="Borrar ${item.title} de la biblioteca">✕</button>
+      <button class="lib-edit" data-id="${item.id}" aria-label="Editar ${escapeHtml(item.title)}">✏️</button>
+      <button class="lib-del" data-id="${item.id}" aria-label="Borrar ${escapeHtml(item.title)} de la biblioteca">✕</button>
     `;
     row.querySelector('.lib-edit').onclick = () => {
       editingLibraryId = item.id;
@@ -1091,8 +1091,8 @@ function renderDay(){
         const editRow = document.createElement('div');
         editRow.className = 'item-edit-form';
         editRow.innerHTML = `
-          <input type="text" class="item-edit-emoji" value="${item.e}" maxlength="4" aria-label="Emoji de la tarea">
-          <input type="text" class="item-edit-text" value="${item.t}" aria-label="Texto de la tarea">
+          <input type="text" class="item-edit-emoji" value="${escapeHtml(item.e)}" maxlength="4" aria-label="Emoji de la tarea">
+          <input type="text" class="item-edit-text" value="${escapeHtml(item.t)}" aria-label="Texto de la tarea">
           <button type="button" class="item-edit-save">💾</button>
           <button type="button" class="item-edit-cancel">✕</button>
         `;
@@ -1115,10 +1115,10 @@ function renderDay(){
       row.innerHTML = `
         <input type="checkbox" class="item-checkbox" ${isDone ? 'checked' : ''}>
         <span class="checkbox" aria-hidden="true" style="${isDone ? `background:linear-gradient(135deg, ${c1}, ${c2}); border-color:${c1};` : `border-color:${c1};`}"><svg width="12" height="10" viewBox="0 0 12 10" fill="none"><path d="M1 5L4.5 8.5L11 1.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <span class="item-emoji" aria-hidden="true">${item.e}</span>
-        <span class="item-text">${item.t}</span>
-        <button type="button" class="item-edit-btn" aria-label="Editar ${item.t}">✏️</button>
-        <button type="button" class="item-del-btn" aria-label="Borrar ${item.t}">✕</button>`;
+        <span class="item-emoji" aria-hidden="true">${escapeHtml(item.e)}</span>
+        <span class="item-text">${escapeHtml(item.t)}</span>
+        <button type="button" class="item-edit-btn" aria-label="Editar ${escapeHtml(item.t)}">✏️</button>
+        <button type="button" class="item-del-btn" aria-label="Borrar ${escapeHtml(item.t)}">✕</button>`;
       row.querySelector('.item-checkbox').addEventListener('click', (ev) => {
         const checked = ev.target.checked;
         if (checked) { state[dayKey].add(item.id); burstConfetti(ev.clientX, ev.clientY); }

@@ -8,6 +8,7 @@ const {
   todayKey,
   isoDate,
   geolocationErrorMessage,
+  escapeHtml,
 } = require('../logic.js');
 
 test('haversine: mismo punto es distancia cero', () => {
@@ -79,4 +80,15 @@ test('geolocationErrorMessage: distingue los códigos de error conocidos', () =>
   assert.match(geolocationErrorMessage(denied), /permiso/i);
   assert.match(geolocationErrorMessage(unavailable), /GPS/i);
   assert.match(geolocationErrorMessage(timeout), /Tard/i);
+});
+
+test('escapeHtml: neutraliza etiquetas y comillas (evita romper el HTML de vuelta)', () => {
+  assert.equal(escapeHtml('<script>alert(1)</script>'), '&lt;script&gt;alert(1)&lt;/script&gt;');
+  assert.equal(escapeHtml('Nombre "raro" & cía'), 'Nombre &quot;raro&quot; &amp; cía');
+  assert.equal(escapeHtml(`" onmouseover="alert(1)`), '&quot; onmouseover=&quot;alert(1)');
+});
+
+test('escapeHtml: no toca texto normal (sin caracteres especiales)', () => {
+  assert.equal(escapeHtml('Café / mate y desayuno'), 'Café / mate y desayuno');
+  assert.equal(escapeHtml('🚗'), '🚗');
 });

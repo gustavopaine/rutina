@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rutina-veronica-v6';
+const CACHE_NAME = 'rutina-veronica-v7';
 const APP_SHELL = [
   './',
   './index.html',

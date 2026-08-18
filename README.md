@@ -226,3 +226,12 @@ El proyecto avanza por niveles definidos junto con el usuario:
   (192, 512, maskable) cargan ✓, viewport y theme-color ✓,
   apple-touch-icon ✓, service worker activo de verdad ✓. Cumple todos
   los criterios estándar de "instalable".
+- **Nivel 15** — revisión de seguridad del repo público: sin secretos
+  ni archivos sensibles en todo el historial de git. De paso se
+  encontró y arregló un XSS real (de alcance acotado, sin backend ni
+  otros usuarios, pero explotable vía un archivo de backup malicioso
+  importado): los campos de texto libre que edita el usuario (nombre
+  de cumpleaños, texto de tareas, título/link de biblioteca) se
+  insertaban en el HTML sin escapar. Se agregó `escapeHtml()` en
+  `logic.js` y se aplicó en todos los puntos de interpolación hacia
+  HTML.
