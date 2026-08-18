@@ -7,7 +7,7 @@ module.exports = defineConfig({
   workers: 1,
   retries: 0,
   timeout: 90000,
-  reporter: [['list']],
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'retain-on-failure',

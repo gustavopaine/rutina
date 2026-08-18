@@ -213,3 +213,8 @@ El proyecto avanza por niveles definidos junto con el usuario:
   regresiones en la lógica pura antes de que lleguen a la rama
   publicada. Mismo alcance que el hook de pre-commit (rápido, sin los
   tests de UI).
+- **Nivel 13** — el CI ahora corre también los 13 tests de UI de
+  Playwright (`ui-tests`, en paralelo con `unit-tests`), algo que en
+  este entorno de desarrollo local es lento pero en las máquinas de
+  GitHub Actions corre rápido y confiable. Si algo falla, sube el
+  reporte HTML de Playwright como artefacto del workflow.
