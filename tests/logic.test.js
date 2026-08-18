@@ -9,7 +9,12 @@ const {
   isoDate,
   geolocationErrorMessage,
   escapeHtml,
+  urlBase64ToUint8Array,
 } = require('../logic.js');
+
+function toBase64Url(str){
+  return Buffer.from(str).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
 
 test('haversine: mismo punto es distancia cero', () => {
   const p = { lat: -40.8135, lng: -62.9967 };
@@ -91,4 +96,28 @@ test('escapeHtml: neutraliza etiquetas y comillas (evita romper el HTML de vuelt
 test('escapeHtml: no toca texto normal (sin caracteres especiales)', () => {
   assert.equal(escapeHtml('Café / mate y desayuno'), 'Café / mate y desayuno');
   assert.equal(escapeHtml('🚗'), '🚗');
+});
+
+test('urlBase64ToUint8Array: decodifica bytes correctos ida y vuelta', () => {
+  const original = 'hello';
+  const bytes = urlBase64ToUint8Array(toBase64Url(original));
+  assert.deepEqual(Array.from(bytes), Array.from(Buffer.from(original)));
+});
+
+test('urlBase64ToUint8Array: maneja distintos largos de padding (0-3 caracteres de relleno)', () => {
+  for (const original of ['a', 'ab', 'abc', 'abcd']){
+    const bytes = urlBase64ToUint8Array(toBase64Url(original));
+    assert.equal(Buffer.from(bytes).toString(), original, `falló con "${original}"`);
+  }
+});
+
+test('urlBase64ToUint8Array: acepta los caracteres URL-safe "-" y "_"', () => {
+  // Bytes elegidos para que la codificación base64 estándar use "+" y "/",
+  // así el test cubre el reemplazo a variante URL-safe.
+  const rawBytes = Uint8Array.from([251, 255, 191]);
+  const standardBase64 = Buffer.from(rawBytes).toString('base64'); // "+/+/"-ish
+  assert.ok(standardBase64.includes('+') || standardBase64.includes('/'), 'el fixture no ejercita +/ como se esperaba');
+  const urlSafe = standardBase64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const bytes = urlBase64ToUint8Array(urlSafe);
+  assert.deepEqual(Array.from(bytes), Array.from(rawBytes));
 });

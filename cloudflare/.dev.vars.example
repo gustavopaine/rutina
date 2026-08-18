@@ -1,0 +1,5 @@
+# Copiá este archivo a .dev.vars (que está en .gitignore, nunca se sube)
+# para probar el Worker localmente con `wrangler dev`.
+# En producción, VAPID_PRIVATE_KEY se setea con `wrangler secret put`, no acá.
+
+VAPID_PRIVATE_KEY=REPLACE_WITH_VAPID_PRIVATE_KEY

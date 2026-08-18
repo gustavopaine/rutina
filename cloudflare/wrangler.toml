@@ -1,0 +1,32 @@
+# Worker que manda los recordatorios push de la rutina de Verónica.
+# No se deployea automáticamente (Nivel 16, deploy manual) — ver README.md
+# en la raíz del repo, sección "Recordatorios push", para el setup completo.
+
+name = "rutina-veronica-push"
+main = "src/worker.js"
+compatibility_date = "2026-08-18"
+compatibility_flags = ["nodejs_compat"]
+
+kv_namespaces = [
+  { binding = "SUBSCRIPTIONS", id = "5adb4684db5f488cbe13fc3d6ec554cd" }
+]
+
+# Horarios de los bloques Lunes-Viernes (ya definidos en app.js), en UTC.
+# Argentina es UTC-3 fijo (sin horario de verano desde 2009).
+#   Mañana 6:00  ART -> 09:00 UTC
+#   Tarde  12:30 ART -> 15:30 UTC
+#   Noche  19:00 ART -> 22:00 UTC
+[triggers]
+crons = [
+  "0 9 * * 1-5",
+  "30 15 * * 1-5",
+  "0 22 * * 1-5",
+]
+
+# Públicas, no secretas: la public key VAPID viaja igual dentro de app.js.
+# VAPID_PRIVATE_KEY se setea aparte con `wrangler secret put`, nunca acá.
+[vars]
+VAPID_PUBLIC_KEY = "BKS7dha6Jk1ijHBI05bfuxaYk_Q_Lh028EfeUSndMCloJzHrfibh0Nmb18hnKru-dBnwhMG5nl9oFsDQt9NrBu0"
+VAPID_SUBJECT = "mailto:gustavopaine@gmail.com"
+# Origen permitido para las llamadas de fetch() desde el navegador.
+ALLOWED_ORIGIN = "https://gustavopaine.github.io"

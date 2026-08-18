@@ -2,13 +2,18 @@
 
 [![Tests](https://github.com/gustavopaine/rutina/actions/workflows/test.yml/badge.svg)](https://github.com/gustavopaine/rutina/actions/workflows/test.yml)
 
-App de una sola sección por pestaña (sin backend) para la rutina semanal de
-Verónica, con tema de cuarteto (Euge Quevedo). Incluye:
+App de una sola sección por pestaña (sin backend para el contenido) para la
+rutina semanal de Verónica, con tema de cuarteto (Euge Quevedo). Incluye:
 
 - **Rutina semanal**: checklist por día (Mañana / Tarde / Noche), con progreso.
 - **Cumpleaños**: lista con cuenta regresiva, editable desde la app.
 - **Caminata**: tracking GPS en vivo con mapa (Leaflet + OpenStreetMap), sin costo.
 - **Biblioteca**: accesos rápidos de música + tus propios links.
+- **Recordatorios push**: aviso real (llega aunque la app esté cerrada) de
+  lunes a viernes al arrancar cada bloque de la rutina — ver
+  [Recordatorios push](#recordatorios-push) más abajo. Es la única parte de
+  la app con una piecita server-side (un Worker de Cloudflare, gratis), todo
+  lo demás sigue sin backend.
 
 ## Cómo abrirla
 
@@ -50,6 +55,11 @@ iOS se comporta distinto a Android/Chrome:
   puede limpiar el caché del service worker y los datos guardados sin avisar.
   Por eso conviene usar de vez en cuando **⬇️ Exportar datos** (pie de página)
   como respaldo real, no depender solo de que iOS los mantenga para siempre.
+- **Recordatorios push:** en iOS, Web Push solo funciona desde Safari 16.4+
+  y únicamente para la app ya agregada a la pantalla de inicio (no desde
+  Safari en una pestaña normal). Con una versión de iOS más vieja, el botón
+  "🔔 Activar recordatorios" no va a aparecer — la app detecta que no está
+  soportado y no rompe nada, simplemente no ofrece la opción.
 
 Sources: [MagicBell — PWA iOS Limitations and Safari Support (2026)](https://www.magicbell.com/blog/pwa-ios-limitations-safari-support-complete-guide), [Progressier — Screen Wake Lock PWA Demo](https://progressier.com/pwa-capabilities/screen-wake-lock), [OJapp — What PWAs Can and Cannot Do on iOS in 2026](https://tips.ojapp.app/en/pwa-ios-2026-complete-guide/)
 
@@ -61,9 +71,12 @@ styles.css           Todos los estilos
 logic.js              Lógica pura sin DOM (fechas, distancia GPS) — testeable
 app.js                Datos "de fábrica" + resto de la lógica de la app
 manifest.json         Metadatos para instalar como PWA
-service-worker.js     Caché offline del "app shell"
+service-worker.js     Caché offline del "app shell" + recordatorios push
 icons/                Íconos de la PWA (192, 512, maskable)
 tests/                Tests automáticos (Node, sin dependencias)
+cloudflare/            Worker que manda los recordatorios push (Nivel 16) —
+                       no forma parte del sitio publicado en GitHub Pages,
+                       se deployea aparte. Ver "Recordatorios push" abajo.
 ```
 
 ## Cómo editar contenido
@@ -128,11 +141,70 @@ git config core.hooksPath .githooks
 Todo se guarda en el `localStorage` del navegador donde se usa la app (no hay
 servidor ni base de datos). Eso significa que **es por navegador/dispositivo**:
 si se abre desde otro celular o se borra el caché del navegador, no va a
-tener el historial ni lo tildado.
+tener el historial ni lo tildado. La única excepción es la suscripción a
+recordatorios push (ver más abajo): esa sí vive en un servidor, porque sin
+eso no hay forma de que el aviso llegue con la app cerrada — pero ni el
+checklist ni el contenido de la rutina viajan nunca fuera del dispositivo.
 
 Para no perder esos datos, usá los botones **⬇️ Exportar datos** / **⬆️
 Importar datos** al pie de la app: exportan/restauran un archivo `.json` con
 el checklist, el historial de caminatas, la biblioteca y los cumpleaños.
+
+## Recordatorios push
+
+Con el botón **🔔 Activar recordatorios** (pie de página), la app manda un
+push real de lunes a viernes al arrancar cada bloque de la rutina —
+Mañana (6:00), Tarde (12:30) y Noche (19:00), hora Argentina— que llega
+**aunque la app esté completamente cerrada**. El aviso es "ciego": solo
+dice qué bloque arrancó, no sabe qué tareas tenés tildadas (así el
+contenido de la rutina nunca sale del dispositivo). Sábado y domingo no
+avisan porque esos bloques son "Libre", sin horario fijo.
+
+Como la app no tiene servidor propio, esto necesita sí o sí una piecita
+externa que dispare el envío a la hora justa (ninguna magia de PWA lo
+resuelve sin backend). Se implementó como un **Worker de Cloudflare**
+(gratis, sin tarjeta) en `cloudflare/`, con Cron Triggers a esos 3 horarios
+y un KV namespace donde se guarda la suscripción del celular. Ese Worker
+**no se deployea solo** ni desde el CI de este repo — es un setup manual,
+una sola vez:
+
+```
+cd cloudflare
+npm install
+
+# 1) Generar el par de claves VAPID (público/privado)
+npx web-push generate-vapid-keys
+
+# 2) Login en tu cuenta de Cloudflare (abre el navegador)
+npx wrangler login
+
+# 3) Crear el KV namespace y completar su id en wrangler.toml
+npx wrangler kv namespace create SUBSCRIPTIONS
+
+# 4) Completar en wrangler.toml: VAPID_PUBLIC_KEY (de 1) y ALLOWED_ORIGIN
+#    Completar en app.js: la misma VAPID_PUBLIC_KEY y PUSH_SERVER_URL
+#    (la URL que imprime `wrangler deploy` en el paso 5, algo como
+#    https://rutina-veronica-push.<tu-cuenta>.workers.dev)
+
+# 5) Cargar la clave PRIVADA como secreto (nunca va en un archivo del repo)
+npx wrangler secret put VAPID_PRIVATE_KEY
+
+# 6) Deploy
+npx wrangler deploy
+```
+
+La clave privada VAPID es lo único sensible de todo esto — vive solo como
+secreto de Cloudflare, nunca en el repo (que es público). El endpoint
+`/subscribe` no tiene autenticación (nadie más lo necesita: es un solo
+dispositivo suscripto); el peor caso si alguien lo encuentra y lo usa mal
+es que los recordatorios dejen de llegar hasta volver a tocar "Activar" —
+ningún dato personal se expone, porque el Worker nunca devuelve lo que
+tiene guardado, solo lo usa para mandar el push.
+
+Ver `docs/specs/2026-08-18-recordatorios-push.md` para el diseño completo
+(qué quedó afuera a propósito: recordatorio por tarea individual, fin de
+semana, saltear el aviso si ya tildaste todo, más de un dispositivo
+suscripto).
 
 ## Roadmap (niveles)
 
@@ -235,3 +307,12 @@ El proyecto avanza por niveles definidos junto con el usuario:
   insertaban en el HTML sin escapar. Se agregó `escapeHtml()` en
   `logic.js` y se aplicó en todos los puntos de interpolación hacia
   HTML.
+- **Nivel 16** — recordatorios push reales (llegan aunque la app esté
+  cerrada) de lunes a viernes al arrancar cada bloque de la rutina.
+  Como la app no tiene backend, esto necesitó agregar la primera pieza
+  server-side del proyecto: un Worker de Cloudflare (gratis, en
+  `cloudflare/`) con Cron Triggers que dispara el push a los 3 horarios
+  fijos de los bloques. El aviso es "ciego" a propósito (no sabe qué
+  tildaste) para que el checklist siga sin salir nunca del dispositivo.
+  Ver [Recordatorios push](#recordatorios-push) arriba para el setup y
+  `docs/specs/2026-08-18-recordatorios-push.md` para el diseño completo.

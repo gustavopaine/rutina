@@ -1,0 +1,16 @@
+{
+  "name": "rutina-veronica-push-worker",
+  "private": true,
+  "description": "Worker de Cloudflare que manda los recordatorios push de la rutina (Nivel 16). No forma parte del sitio publicado en GitHub Pages.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.123.0"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

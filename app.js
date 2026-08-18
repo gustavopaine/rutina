@@ -162,7 +162,7 @@ const DEFAULT_DATA = {
 };
 
 const ORDER = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
-const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml } = window.RutinaLogic;
+const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array } = window.RutinaLogic;
 
 // ---- Anuncios puntuales para lectores de pantalla (no releer todo el panel) ----
 function announce(message){
@@ -1316,4 +1316,73 @@ if ('serviceWorker' in navigator){
       console.error('No se pudo registrar el service worker', e);
     });
   });
+}
+
+// ---- Recordatorios push (Nivel 16) ----
+// Public key VAPID: es pública por diseño (viaja en cualquier cliente que
+// se suscriba), no es un secreto. La clave privada vive solo en el Worker.
+const VAPID_PUBLIC_KEY = 'BKS7dha6Jk1ijHBI05bfuxaYk_Q_Lh028EfeUSndMCloJzHrfibh0Nmb18hnKru-dBnwhMG5nl9oFsDQt9NrBu0';
+const PUSH_SERVER_URL = 'https://rutina-veronica-push.gustavopaine.workers.dev';
+
+const reminderBtn = document.getElementById('reminderBtn');
+const reminderStatus = document.getElementById('reminderStatus');
+
+function setReminderStatus(text){
+  if (reminderStatus) reminderStatus.textContent = text;
+}
+
+async function updateReminderButton(){
+  if (!reminderBtn) return;
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.getSubscription();
+  if (subscription){
+    reminderBtn.textContent = '🔕 Desactivar recordatorios';
+    setReminderStatus('Recordatorios activados: avisan lunes a viernes al arrancar cada bloque (Mañana/Tarde/Noche).');
+  } else {
+    reminderBtn.textContent = '🔔 Activar recordatorios';
+    setReminderStatus('');
+  }
+}
+
+async function subscribeToReminders(){
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted'){
+    setReminderStatus('No se activaron los recordatorios: falta el permiso de notificaciones del navegador.');
+    return;
+  }
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+  });
+  await fetch(`${PUSH_SERVER_URL}/subscribe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(subscription),
+  });
+}
+
+async function unsubscribeFromReminders(subscription){
+  await subscription.unsubscribe();
+  fetch(`${PUSH_SERVER_URL}/unsubscribe`, { method: 'POST' }).catch(() => {});
+}
+
+if (reminderBtn && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window){
+  reminderBtn.hidden = false;
+  reminderBtn.onclick = async () => {
+    reminderBtn.disabled = true;
+    try{
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) await unsubscribeFromReminders(existing);
+      else await subscribeToReminders();
+      await updateReminderButton();
+    }catch(e){
+      console.error('No se pudo cambiar el estado de los recordatorios', e);
+      setReminderStatus('Algo falló activando los recordatorios. Probá de nuevo.');
+    }finally{
+      reminderBtn.disabled = false;
+    }
+  };
+  navigator.serviceWorker.ready.then(updateReminderButton).catch(() => {});
 }
