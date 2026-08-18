@@ -1344,27 +1344,38 @@ async function updateReminderButton(){
   }
 }
 
+// Devuelve true si quedó realmente suscripto (navegador + Worker). false si
+// no (permiso denegado, o el Worker no pudo guardar la suscripción) — en
+// ese caso ya dejó su propio mensaje en reminderStatus, no lo pises.
 async function subscribeToReminders(){
   const permission = await Notification.requestPermission();
   if (permission !== 'granted'){
     setReminderStatus('No se activaron los recordatorios: falta el permiso de notificaciones del navegador.');
-    return;
+    return false;
   }
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
   });
-  await fetch(`${PUSH_SERVER_URL}/subscribe`, {
+  const response = await fetch(`${PUSH_SERVER_URL}/subscribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(subscription),
   });
+  if (!response.ok){
+    // El navegador quedó suscripto pero el Worker no lo guardó: no sirve de
+    // nada, así que la deshacemos en vez de mentir que quedó activado.
+    await subscription.unsubscribe();
+    setReminderStatus('No se pudo activar: el servidor de recordatorios no respondió. Probá de nuevo en un rato.');
+    return false;
+  }
+  return true;
 }
 
 async function unsubscribeFromReminders(subscription){
   await subscription.unsubscribe();
-  fetch(`${PUSH_SERVER_URL}/unsubscribe`, { method: 'POST' }).catch(() => {});
+  await fetch(`${PUSH_SERVER_URL}/unsubscribe`, { method: 'POST' }).catch(() => {});
 }
 
 if (reminderBtn && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window){
@@ -1374,9 +1385,12 @@ if (reminderBtn && 'serviceWorker' in navigator && 'PushManager' in window && 'N
     try{
       const registration = await navigator.serviceWorker.ready;
       const existing = await registration.pushManager.getSubscription();
-      if (existing) await unsubscribeFromReminders(existing);
-      else await subscribeToReminders();
-      await updateReminderButton();
+      if (existing){
+        await unsubscribeFromReminders(existing);
+        await updateReminderButton();
+      } else if (await subscribeToReminders()){
+        await updateReminderButton();
+      }
     }catch(e){
       console.error('No se pudo cambiar el estado de los recordatorios', e);
       setReminderStatus('Algo falló activando los recordatorios. Probá de nuevo.');
