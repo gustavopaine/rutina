@@ -172,6 +172,22 @@ h1 span{
   font-weight:700;
 }
 
+.streak-badge{
+  display:inline-flex; align-items:center; gap:6px;
+  margin-top:12px;
+  padding:8px 16px;
+  border-radius:999px;
+  font-family:'Baloo 2', sans-serif;
+  font-weight:800;
+  font-size:14px;
+  color:#fff;
+  background:linear-gradient(120deg, var(--orange-deep), var(--gold));
+  box-shadow:var(--shadow);
+}
+/* La cascada del navegador NO garantiza que [hidden] le gane a display:inline-flex
+   de la regla de arriba (misma especificidad, ambas de autor) — hay que decirlo explícito. */
+.streak-badge[hidden]{ display:none; }
+
 .tabs{
   display:flex;
   gap:6px;
@@ -580,6 +596,13 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
 .walk-session .date{ font-size:13px; font-weight:800; color:var(--ink); }
 .walk-session .detail{ font-size:12px; color:var(--text-soft); font-weight:600; }
 .walk-empty{ text-align:center; color:var(--text-soft); font-size:13px; font-weight:600; padding:16px; }
+.walk-summary-stats{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));
+  gap:10px;
+  margin-bottom:8px;
+}
+.walk-stats-note{ font-size:11px; color:var(--text-soft); margin:0 4px 14px; }
 
 /* Biblioteca */
 .tab.libtab{ background:#F1EBFF; color:var(--violet-deep); }

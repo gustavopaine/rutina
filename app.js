@@ -162,7 +162,7 @@ const DEFAULT_DATA = {
 };
 
 const ORDER = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
-const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array } = window.RutinaLogic;
+const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays } = window.RutinaLogic;
 
 // ---- Anuncios puntuales para lectores de pantalla (no releer todo el panel) ----
 function announce(message){
@@ -187,6 +187,18 @@ function showSaveError(message){
 }
 const CHECK_STORAGE_KEY = 'veronica-checklist-state';
 const CHECK_LAST_ACTIVE_KEY = 'veronica-checklist-last-active';
+const STREAK_STORAGE_KEY = 'veronica-routine-history';
+
+// Instantánea de antes de que loadCheckState() detecte el cambio de día y
+// resetee el checklist de hoy — la necesitamos intacta para poder evaluar
+// más abajo (una vez cargada `routine`) si el día que se está dejando atrás
+// quedó 100% completo, y así cerrarlo en el historial de racha.
+const previousLastActive = (() => {
+  try{ return localStorage.getItem(CHECK_LAST_ACTIVE_KEY); }catch(e){ return null; }
+})();
+const previousCheckSnapshot = (() => {
+  try{ const raw = localStorage.getItem(CHECK_STORAGE_KEY); return raw ? JSON.parse(raw) : {}; }catch(e){ return {}; }
+})();
 
 function loadCheckState(){
   const state = {};
@@ -268,6 +280,65 @@ function saveRoutine(){
 const routine = loadRoutine();
 let addingToBlock = null; // índice de bloque del día actual con el mini-formulario abierto, o null
 let editingItemId = null; // id del item que se está editando en el día actual, o null
+
+// ---- Racha de rutina: historial persistente de días 100% completos ----
+function loadRoutineHistory(){
+  try{
+    const raw = localStorage.getItem(STREAK_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+function saveRoutineHistory(history){
+  try{ localStorage.setItem(STREAK_STORAGE_KEY, JSON.stringify(history)); }
+  catch(e){ console.error('No se pudo guardar el historial de racha', e); }
+}
+
+// Si cambió el día calendario desde la última vez que se abrió la app (ver
+// previousLastActive/previousCheckSnapshot arriba), evalúa si el día que se
+// deja atrás quedó 100% completo contra la rutina editable actual y, si es
+// así, lo agrega al historial persistente. Corre una sola vez por apertura
+// en un día distinto — mismo punto donde loadCheckState() ya detecta el
+// cambio de día.
+function closeRoutineHistoryIfDayChanged(){
+  const today = isoDate(new Date());
+  if (!previousLastActive || previousLastActive === today) return;
+  const [y, m, d] = previousLastActive.split('-').map(Number);
+  const prevWeekday = todayKey(new Date(y, m - 1, d), ORDER);
+  const day = routine[prevWeekday];
+  if (!day) return;
+  const currentItemIds = new Set();
+  day.blocks.forEach(b => b.items.forEach(i => currentItemIds.add(i.id)));
+  const doneIds = Array.isArray(previousCheckSnapshot[prevWeekday]) ? previousCheckSnapshot[prevWeekday] : [];
+  const doneCount = doneIds.filter(id => currentItemIds.has(id)).length;
+  const total = totalItems(day);
+  if (total > 0 && doneCount === total){
+    const history = loadRoutineHistory();
+    if (!history.includes(previousLastActive)){
+      history.push(previousLastActive);
+      saveRoutineHistory(history);
+    }
+  }
+}
+closeRoutineHistoryIfDayChanged();
+
+function renderStreakBadge(){
+  const el = document.getElementById('streakBadge');
+  if (!el) return;
+  const today = isoDate(new Date());
+  const todaysKey = todayKey(new Date(), ORDER);
+  const day = routine[todaysKey];
+  const total = totalItems(day);
+  const done = day.blocks.reduce((s, b) => s + b.items.filter(i => state[todaysKey].has(i.id)).length, 0);
+  const todayCompleted = total > 0 && done === total;
+  const history = loadRoutineHistory().filter(d => d !== today);
+  const streak = computeStreak(history, today, todayCompleted);
+  if (streak > 0){
+    el.hidden = false;
+    el.textContent = `🔥 ${streak} día${streak === 1 ? '' : 's'} seguido${streak === 1 ? '' : 's'}`;
+  } else {
+    el.hidden = true;
+  }
+}
 
 function addRoutineItem(dayKey, blockIdx, text, emoji){
   const item = { id: Date.now().toString(), t: text, e: emoji || '📌' };
@@ -400,6 +471,7 @@ async function loadBirthdays(){
 async function saveBirthdays(){
   try{ localStorage.setItem(BIRTHDAYS_STORAGE_KEY, JSON.stringify(birthdays)); }
   catch(e){ console.error('No se pudo guardar la lista de cumpleaños', e); showSaveError('No se pudo guardar el cumpleaños.'); }
+  await syncBirthdaysToWorker();
 }
 
 async function submitBirthdayForm(){
@@ -701,6 +773,24 @@ function walkStatsFromPath(path, startTime){
   return { distKm, elapsed, steps };
 }
 
+function renderWalkSummary(){
+  const el = document.getElementById('walkSummaryStats');
+  if (!el) return;
+  const now = new Date();
+  const totalKm = totalWalkDistanceKm(walkHistory);
+  const weekKm = walkDistanceThisWeek(walkHistory, now);
+  const monthKm = walkDistanceThisMonth(walkHistory, now);
+  const streakDays = walkStreakDays(walkHistory, isoDate(now));
+  const bestKm = bestWalkDistanceKm(walkHistory);
+  el.innerHTML = `
+    <div class="walk-stat"><div class="label">Distancia total</div><div class="value">${totalKm.toFixed(2)} km</div></div>
+    <div class="walk-stat"><div class="label">Esta semana</div><div class="value">${weekKm.toFixed(2)} km</div></div>
+    <div class="walk-stat"><div class="label">Este mes</div><div class="value">${monthKm.toFixed(2)} km</div></div>
+    <div class="walk-stat"><div class="label">Racha de caminata</div><div class="value">🔥 ${streakDays}</div></div>
+    <div class="walk-stat"><div class="label">Mejor caminata</div><div class="value">${bestKm.toFixed(2)} km</div></div>
+  `;
+}
+
 function renderWalkHistory(){
   const histEl = document.getElementById('walkHistoryList');
   if (!histEl) return;
@@ -828,10 +918,12 @@ async function stopWalk(){
       durationLabel: formatDuration(elapsed),
       steps: steps.toLocaleString('es-AR'),
       mode: walkCurrentMode,
+      timestamp: Date.now(),
     };
     walkHistory.push(session);
     await saveWalkHistory();
     renderWalkHistory();
+    renderWalkSummary();
   }
   walkMarker = null;
   renderWalkControls();
@@ -866,6 +958,9 @@ async function renderWalk(){
       <div class="walk-stat"><div class="label">Ritmo</div><div class="value" id="walkPace">--</div></div>
     </div>
     <div id="walkBtnWrap"></div>
+    <div class="walk-history-title">Tus números</div>
+    <div class="walk-summary-stats" id="walkSummaryStats"></div>
+    <div class="walk-stats-note">Esta semana / Este mes / Racha cuentan solo caminatas guardadas desde este nivel en adelante.</div>
     <div class="walk-history-title">Historial de caminatas</div>
     <div id="walkHistoryList"></div>
   `;
@@ -873,6 +968,7 @@ async function renderWalk(){
   renderWalkControls();
   await loadWalkHistory();
   renderWalkHistory();
+  renderWalkSummary();
 
   if (!walkTracking){
     const abandoned = loadInProgressWalk();
@@ -896,6 +992,7 @@ async function renderWalk(){
             durationLabel: formatDuration(stats.elapsed),
             steps: stats.steps.toLocaleString('es-AR'),
             mode: abandoned.mode || 'walking',
+            timestamp: abandoned.startTime || Date.now(),
           };
           walkHistory.push(session);
           await saveWalkHistory();
@@ -1176,6 +1273,7 @@ function renderDay(){
   const done = day.blocks.reduce((s, b) => s + b.items.filter(i => state[dayKey].has(i.id)).length, 0);
   document.getElementById('progFill').style.width = (total? (done/total*100):0) + '%';
   document.getElementById('progLabel').textContent = done + '/' + total;
+  renderStreakBadge();
 }
 
 renderTabs();
@@ -1318,11 +1416,32 @@ if ('serviceWorker' in navigator){
   });
 }
 
-// ---- Recordatorios push (Nivel 16) ----
+// ---- Recordatorios push (Nivel 16) + push de cumpleaños (Nivel 17) ----
 // Public key VAPID: es pública por diseño (viaja en cualquier cliente que
 // se suscriba), no es un secreto. La clave privada vive solo en el Worker.
 const VAPID_PUBLIC_KEY = 'BKS7dha6Jk1ijHBI05bfuxaYk_Q_Lh028EfeUSndMCloJzHrfibh0Nmb18hnKru-dBnwhMG5nl9oFsDQt9NrBu0';
 const PUSH_SERVER_URL = 'https://rutina-veronica-push.gustavopaine.workers.dev';
+
+// Manda solo nombre/día/mes (sin categoría ni año) al Worker — es lo único
+// que necesita para armar el aviso "mañana cumple Fulano". Se llama al
+// activar recordatorios y en cada alta/edición/baja de un cumpleaños; si no
+// hay suscripción activa no manda nada (el Worker igual la rechazaría, ver
+// docs/specs/2026-08-18-nivel17-racha-cumples-caminata.md).
+async function syncBirthdaysToWorker(){
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try{
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) return;
+    await loadBirthdays();
+    const payload = birthdays.map(b => ({ name: b.name, day: b.day, month: b.month }));
+    await fetch(`${PUSH_SERVER_URL}/birthdays`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  }catch(e){ console.error('No se pudo sincronizar los cumpleaños con el servidor de recordatorios', e); }
+}
 
 const reminderBtn = document.getElementById('reminderBtn');
 const reminderStatus = document.getElementById('reminderStatus');
@@ -1370,6 +1489,7 @@ async function subscribeToReminders(){
     setReminderStatus('No se pudo activar: el servidor de recordatorios no respondió. Probá de nuevo en un rato.');
     return false;
   }
+  await syncBirthdaysToWorker();
   return true;
 }
 

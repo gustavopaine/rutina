@@ -10,6 +10,12 @@ const {
   geolocationErrorMessage,
   escapeHtml,
   urlBase64ToUint8Array,
+  computeStreak,
+  totalWalkDistanceKm,
+  bestWalkDistanceKm,
+  walkDistanceThisWeek,
+  walkDistanceThisMonth,
+  walkStreakDays,
 } = require('../logic.js');
 
 function toBase64Url(str){
@@ -120,4 +126,85 @@ test('urlBase64ToUint8Array: acepta los caracteres URL-safe "-" y "_"', () => {
   const urlSafe = standardBase64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const bytes = urlBase64ToUint8Array(urlSafe);
   assert.deepEqual(Array.from(bytes), Array.from(rawBytes));
+});
+
+test('computeStreak: racha vacía da 0', () => {
+  assert.equal(computeStreak([], '2026-08-17', false), 0);
+});
+
+test('computeStreak: racha consecutiva hasta ayer, hoy sin completar', () => {
+  const history = ['2026-08-14', '2026-08-15', '2026-08-16'];
+  assert.equal(computeStreak(history, '2026-08-17', false), 3);
+});
+
+test('computeStreak: hoy completo suma uno más sobre la racha de ayer', () => {
+  const history = ['2026-08-14', '2026-08-15', '2026-08-16'];
+  assert.equal(computeStreak(history, '2026-08-17', true), 4);
+});
+
+test('computeStreak: un hueco corta la racha', () => {
+  const history = ['2026-08-10', '2026-08-15', '2026-08-16']; // falta el 14
+  assert.equal(computeStreak(history, '2026-08-17', false), 2);
+});
+
+test('computeStreak: solo hoy completo, sin historial previo', () => {
+  assert.equal(computeStreak([], '2026-08-17', true), 1);
+});
+
+test('totalWalkDistanceKm: suma todas las sesiones, con o sin timestamp', () => {
+  const history = [{ distanceKm: '2.50' }, { distanceKm: '1.25', timestamp: 1 }, { distanceKm: '0.75' }];
+  assert.equal(totalWalkDistanceKm(history), 4.5);
+});
+
+test('totalWalkDistanceKm: historial vacío da 0', () => {
+  assert.equal(totalWalkDistanceKm([]), 0);
+});
+
+test('bestWalkDistanceKm: la mayor distancia de todo el historial', () => {
+  const history = [{ distanceKm: '2.50' }, { distanceKm: '5.10' }, { distanceKm: '0.75' }];
+  assert.equal(bestWalkDistanceKm(history), 5.1);
+});
+
+test('bestWalkDistanceKm: historial vacío da 0', () => {
+  assert.equal(bestWalkDistanceKm([]), 0);
+});
+
+test('walkDistanceThisWeek: solo cuenta sesiones con timestamp desde el lunes', () => {
+  const now = new Date(2026, 7, 17); // lunes 17 de agosto de 2026
+  const history = [
+    { distanceKm: '1.00', timestamp: new Date(2026, 7, 16).getTime() }, // domingo, semana anterior
+    { distanceKm: '2.00', timestamp: new Date(2026, 7, 17, 8).getTime() }, // hoy, lunes
+    { distanceKm: '3.00' }, // sin timestamp, caminata vieja
+  ];
+  assert.equal(walkDistanceThisWeek(history, now), 2);
+});
+
+test('walkDistanceThisMonth: solo cuenta sesiones con timestamp del mes actual', () => {
+  const now = new Date(2026, 7, 17);
+  const history = [
+    { distanceKm: '1.00', timestamp: new Date(2026, 6, 31).getTime() }, // julio
+    { distanceKm: '4.00', timestamp: new Date(2026, 7, 1).getTime() }, // agosto
+  ];
+  assert.equal(walkDistanceThisMonth(history, now), 4);
+});
+
+test('walkStreakDays: cuenta días consecutivos con caminata, hoy incluido', () => {
+  const history = [
+    { distanceKm: '1', timestamp: new Date(2026, 7, 15).getTime() },
+    { distanceKm: '1', timestamp: new Date(2026, 7, 16).getTime() },
+    { distanceKm: '1', timestamp: new Date(2026, 7, 17).getTime() },
+  ];
+  assert.equal(walkStreakDays(history, '2026-08-17'), 3);
+});
+
+test('walkStreakDays: sin caminata hoy, la racha es la de hasta ayer', () => {
+  const history = [
+    { distanceKm: '1', timestamp: new Date(2026, 7, 15).getTime() },
+    { distanceKm: '1', timestamp: new Date(2026, 7, 16).getTime() },
+  ];
+  assert.equal(walkStreakDays(history, '2026-08-17'), 2);
+});
+
+test('walkStreakDays: sin ninguna caminata da 0', () => {
+  assert.equal(walkStreakDays([], '2026-08-17'), 0);
 });

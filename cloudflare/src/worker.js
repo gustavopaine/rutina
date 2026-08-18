@@ -1,9 +1,13 @@
 import webpush from 'web-push';
 
-// Único dato que este Worker guarda: la suscripción push (endpoint +
-// claves públicas del navegador). Nunca recibe ni guarda contenido de la
-// rutina (tareas, tildado, etc.) — ver docs/specs/2026-08-18-recordatorios-push.md.
+// Datos que este Worker guarda: la suscripción push (endpoint + claves
+// públicas del navegador) y, desde el Nivel 17, la lista de cumpleaños a
+// avisar (solo nombre/día/mes — nunca año de nacimiento ni categoría).
+// Nunca recibe ni guarda contenido de la rutina (tareas, tildado, etc.) —
+// ver docs/specs/2026-08-18-recordatorios-push.md y
+// docs/specs/2026-08-18-nivel17-racha-cumples-caminata.md.
 const SUBSCRIPTION_KEY = 'veronica';
+const BIRTHDAYS_KEY = 'birthdays';
 
 // event.cron -> texto de la notificación. Debe coincidir exactamente con
 // los crons definidos en wrangler.toml.
@@ -12,6 +16,8 @@ const BLOCK_MESSAGES = {
   '30 15 * * 1-5': { title: '☀️ Arrancó la Tarde',   body: 'Revisá tu rutina de hoy.' },
   '0 22 * * 1-5':  { title: '🌙 Arrancó la Noche',   body: 'Revisá tu rutina de hoy.' },
 };
+// Cron diario del aviso de cumpleaños (8:00 ART = 11:00 UTC, ver wrangler.toml).
+const BIRTHDAY_CRON = '0 11 * * *';
 
 function corsHeaders(env){
   return {
@@ -27,6 +33,34 @@ function isValidSubscription(sub){
     && sub.keys
     && typeof sub.keys.p256dh === 'string'
     && typeof sub.keys.auth === 'string';
+}
+
+function isValidBirthdayList(list){
+  return Array.isArray(list) && list.every(b =>
+    b && typeof b.name === 'string' && b.name.trim().length > 0
+    && Number.isInteger(b.day) && b.day >= 1 && b.day <= 31
+    && Number.isInteger(b.month) && b.month >= 1 && b.month <= 12
+  );
+}
+
+// Comparte el envío + la limpieza de suscripciones muertas entre el aviso
+// de bloque de rutina y el de cumpleaños (antes duplicado en scheduled()).
+async function sendPush(env, subscription, message){
+  webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
+  try {
+    await webpush.sendNotification(subscription, JSON.stringify(message));
+  } catch (err){
+    // 404/410: el navegador invalidó la suscripción (reinstaló la app,
+    // borró datos, etc.) — la limpiamos, y con ella los cumpleaños (no
+    // tiene dueño a quién avisarle), para no seguir reintentando algo que
+    // nunca va a funcionar.
+    if (err && (err.statusCode === 404 || err.statusCode === 410)){
+      await env.SUBSCRIPTIONS.delete(SUBSCRIPTION_KEY);
+      await env.SUBSCRIPTIONS.delete(BIRTHDAYS_KEY);
+    } else {
+      throw err;
+    }
+  }
 }
 
 async function handleSubscribe(request, env){
@@ -45,7 +79,52 @@ async function handleSubscribe(request, env){
 
 async function handleUnsubscribe(request, env){
   await env.SUBSCRIPTIONS.delete(SUBSCRIPTION_KEY);
+  await env.SUBSCRIPTIONS.delete(BIRTHDAYS_KEY);
   return new Response(null, { status: 204, headers: corsHeaders(env) });
+}
+
+async function handleBirthdays(request, env){
+  // Sin dueño a quién avisarle no tiene sentido guardar el dato.
+  const hasSubscription = await env.SUBSCRIPTIONS.get(SUBSCRIPTION_KEY);
+  if (!hasSubscription){
+    return new Response('No hay suscripción activa', { status: 400, headers: corsHeaders(env) });
+  }
+  let list;
+  try {
+    list = await request.json();
+  } catch {
+    return new Response('JSON inválido', { status: 400, headers: corsHeaders(env) });
+  }
+  if (!isValidBirthdayList(list)){
+    return new Response('Lista de cumpleaños con forma inválida', { status: 400, headers: corsHeaders(env) });
+  }
+  await env.SUBSCRIPTIONS.put(BIRTHDAYS_KEY, JSON.stringify(list));
+  return new Response(null, { status: 204, headers: corsHeaders(env) });
+}
+
+// Argentina es UTC-3 fijo (sin horario de verano desde 2009) — restar 3h al
+// timestamp UTC actual da la hora Argentina sin depender de la zona horaria
+// del runtime. Devuelve el día/mes calendario argentino de "mañana".
+function argentinaTomorrow(now){
+  const art = new Date(now.getTime() - 3 * 3600 * 1000);
+  const tomorrow = new Date(Date.UTC(art.getUTCFullYear(), art.getUTCMonth(), art.getUTCDate() + 1));
+  return { day: tomorrow.getUTCDate(), month: tomorrow.getUTCMonth() + 1 };
+}
+
+async function handleBirthdayCron(env, now){
+  const rawSub = await env.SUBSCRIPTIONS.get(SUBSCRIPTION_KEY);
+  if (!rawSub) return; // nadie suscripto, nada para mandar
+
+  const rawBirthdays = await env.SUBSCRIPTIONS.get(BIRTHDAYS_KEY);
+  if (!rawBirthdays) return;
+
+  const birthdays = JSON.parse(rawBirthdays);
+  const { day, month } = argentinaTomorrow(now);
+  const matches = birthdays.filter(b => b.day === day && b.month === month);
+  if (!matches.length) return;
+
+  const message = { title: '🎂 Mañana cumple: ' + matches.map(b => b.name).join(', '), body: '¡No te olvides de saludar!' };
+  await sendPush(env, JSON.parse(rawSub), message);
 }
 
 export default {
@@ -61,30 +140,24 @@ export default {
     if (request.method === 'POST' && pathname === '/unsubscribe'){
       return handleUnsubscribe(request, env);
     }
+    if (request.method === 'POST' && pathname === '/birthdays'){
+      return handleBirthdays(request, env);
+    }
     return new Response('Not found', { status: 404, headers: corsHeaders(env) });
   },
 
   async scheduled(event, env){
+    if (event.cron === BIRTHDAY_CRON){
+      await handleBirthdayCron(env, new Date(event.scheduledTime));
+      return;
+    }
+
     const message = BLOCK_MESSAGES[event.cron];
     if (!message) return; // cron desconocido, no debería pasar
 
     const raw = await env.SUBSCRIPTIONS.get(SUBSCRIPTION_KEY);
     if (!raw) return; // nadie suscripto, nada para mandar
 
-    const subscription = JSON.parse(raw);
-    webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
-
-    try {
-      await webpush.sendNotification(subscription, JSON.stringify(message));
-    } catch (err){
-      // 404/410: el navegador invalidó la suscripción (reinstaló la app,
-      // borró datos, etc.) — la limpiamos para no seguir reintentando algo
-      // que nunca va a funcionar.
-      if (err && (err.statusCode === 404 || err.statusCode === 410)){
-        await env.SUBSCRIPTIONS.delete(SUBSCRIPTION_KEY);
-      } else {
-        throw err;
-      }
-    }
+    await sendPush(env, JSON.parse(raw), message);
   },
 };

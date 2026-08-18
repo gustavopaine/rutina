@@ -13,6 +13,10 @@ async function setup(page, { permission = 'granted', subscribeStatus = 204 } = {
   await page.route(/rutina-veronica-push\.gustavopaine\.workers\.dev\/unsubscribe/, (route) =>
     route.fulfill({ status: 204, body: '' })
   );
+  // Nivel 17: activar recordatorios sincroniza los cumpleaños al Worker.
+  await page.route(/rutina-veronica-push\.gustavopaine\.workers\.dev\/birthdays/, (route) =>
+    route.fulfill({ status: 204, body: '' })
+  );
   await page.addInitScript(({ permission }) => {
     Object.defineProperty(window.Notification, 'requestPermission', {
       value: async () => permission,

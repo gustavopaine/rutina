@@ -69,6 +69,61 @@
     return outputArray;
   }
 
+  // Cuenta hacia atrás desde hoy mientras haya fechas calendario consecutivas
+  // en historyDates (cualquier hueco corta la racha). historyDates son días ya
+  // "cerrados" (persistidos); todayCompleted cubre el día de hoy aparte, que
+  // todavía no se guardó en el historial pero ya puede estar completo.
+  // Reusado tanto por la racha de rutina como por la racha de caminata.
+  function computeStreak(historyDates, todayIso, todayCompleted){
+    const dates = historyDates instanceof Set ? historyDates : new Set(historyDates);
+    const [y, m, d] = todayIso.split('-').map(Number);
+    let streak = todayCompleted ? 1 : 0;
+    const cursor = new Date(y, m - 1, d - 1); // día anterior a hoy
+    while (dates.has(isoDate(cursor))){
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return streak;
+  }
+
+  function totalWalkDistanceKm(history){
+    return history.reduce((sum, s) => sum + (parseFloat(s.distanceKm) || 0), 0);
+  }
+
+  function bestWalkDistanceKm(history){
+    return history.reduce((max, s) => Math.max(max, parseFloat(s.distanceKm) || 0), 0);
+  }
+
+  function sumWalkDistanceSince(history, sinceMs){
+    return history
+      .filter(s => typeof s.timestamp === 'number' && s.timestamp >= sinceMs)
+      .reduce((sum, s) => sum + (parseFloat(s.distanceKm) || 0), 0);
+  }
+
+  // Semana empieza el lunes (mismo criterio que ORDER/todayKey en el resto de la app).
+  function walkDistanceThisWeek(history, now){
+    const offset = (now.getDay() + 6) % 7;
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset).getTime();
+    return sumWalkDistanceSince(history, start);
+  }
+
+  function walkDistanceThisMonth(history, now){
+    const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    return sumWalkDistanceSince(history, start);
+  }
+
+  // Días distintos con al menos una caminata con timestamp, en racha hacia
+  // atrás desde hoy — mismo algoritmo que la racha de rutina (computeStreak).
+  function walkStreakDays(history, todayIso){
+    const dates = new Set();
+    history.forEach(s => {
+      if (typeof s.timestamp === 'number') dates.add(isoDate(new Date(s.timestamp)));
+    });
+    const todayCompleted = dates.has(todayIso);
+    dates.delete(todayIso);
+    return computeStreak(dates, todayIso, todayCompleted);
+  }
+
   function geolocationErrorMessage(err){
     if (err.code === err.PERMISSION_DENIED){
       return 'No diste permiso de ubicación. Revisá los permisos de este sitio en la configuración del navegador o del celular y volvé a intentar.';
@@ -82,7 +137,7 @@
     return 'No pude acceder a la ubicación. Revisá los permisos del navegador.';
   }
 
-  const api = { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array };
+  const api = { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RutinaLogic = api;
 

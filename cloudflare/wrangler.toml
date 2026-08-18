@@ -16,11 +16,13 @@ kv_namespaces = [
 #   Mañana 6:00  ART -> 09:00 UTC
 #   Tarde  12:30 ART -> 15:30 UTC
 #   Noche  19:00 ART -> 22:00 UTC
+#   Aviso de cumpleaños (Nivel 17) 8:00 ART -> 11:00 UTC
 [triggers]
 crons = [
   "0 9 * * 1-5",
   "30 15 * * 1-5",
   "0 22 * * 1-5",
+  "0 11 * * *",
 ]
 
 # Públicas, no secretas: la public key VAPID viaja igual dentro de app.js.

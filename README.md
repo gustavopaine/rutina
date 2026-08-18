@@ -5,15 +5,18 @@
 App de una sola sección por pestaña (sin backend para el contenido) para la
 rutina semanal de Verónica, con tema de cuarteto (Euge Quevedo). Incluye:
 
-- **Rutina semanal**: checklist por día (Mañana / Tarde / Noche), con progreso.
+- **Rutina semanal**: checklist por día (Mañana / Tarde / Noche), con progreso
+  y una racha ("🔥 N días seguidos") de días completos consecutivos.
 - **Cumpleaños**: lista con cuenta regresiva, editable desde la app.
-- **Caminata**: tracking GPS en vivo con mapa (Leaflet + OpenStreetMap), sin costo.
+- **Caminata**: tracking GPS en vivo con mapa (Leaflet + OpenStreetMap), sin
+  costo, con un panel de estadísticas (distancia total, esta semana, este
+  mes, racha de días con caminata, mejor caminata).
 - **Biblioteca**: accesos rápidos de música + tus propios links.
 - **Recordatorios push**: aviso real (llega aunque la app esté cerrada) de
-  lunes a viernes al arrancar cada bloque de la rutina — ver
-  [Recordatorios push](#recordatorios-push) más abajo. Es la única parte de
-  la app con una piecita server-side (un Worker de Cloudflare, gratis), todo
-  lo demás sigue sin backend.
+  lunes a viernes al arrancar cada bloque de la rutina, más un aviso de
+  cumpleaños un día antes — ver [Recordatorios push](#recordatorios-push)
+  más abajo. Es la única parte de la app con una piecita server-side (un
+  Worker de Cloudflare, gratis), todo lo demás sigue sin backend.
 
 ## Cómo abrirla
 
@@ -74,9 +77,10 @@ manifest.json         Metadatos para instalar como PWA
 service-worker.js     Caché offline del "app shell" + recordatorios push
 icons/                Íconos de la PWA (192, 512, maskable)
 tests/                Tests automáticos (Node, sin dependencias)
-cloudflare/            Worker que manda los recordatorios push (Nivel 16) —
-                       no forma parte del sitio publicado en GitHub Pages,
-                       se deployea aparte. Ver "Recordatorios push" abajo.
+cloudflare/            Worker que manda los recordatorios push y el aviso de
+                       cumpleaños (Nivel 16-17) — no forma parte del sitio
+                       publicado en GitHub Pages, se deployea aparte. Ver
+                       "Recordatorios push" abajo.
 ```
 
 ## Cómo editar contenido
@@ -141,10 +145,11 @@ git config core.hooksPath .githooks
 Todo se guarda en el `localStorage` del navegador donde se usa la app (no hay
 servidor ni base de datos). Eso significa que **es por navegador/dispositivo**:
 si se abre desde otro celular o se borra el caché del navegador, no va a
-tener el historial ni lo tildado. La única excepción es la suscripción a
-recordatorios push (ver más abajo): esa sí vive en un servidor, porque sin
-eso no hay forma de que el aviso llegue con la app cerrada — pero ni el
-checklist ni el contenido de la rutina viajan nunca fuera del dispositivo.
+tener el historial ni lo tildado. Las excepciones son la suscripción a
+recordatorios push y, mientras esté activa, la lista de cumpleaños (ver más
+abajo): esas sí viven en un servidor, porque sin eso no hay forma de que el
+aviso llegue con la app cerrada — pero ni el checklist, ni el contenido de
+la rutina, ni el historial de caminatas viajan nunca fuera del dispositivo.
 
 Para no perder esos datos, usá los botones **⬇️ Exportar datos** / **⬆️
 Importar datos** al pie de la app: exportan/restauran un archivo `.json` con
@@ -160,13 +165,21 @@ dice qué bloque arrancó, no sabe qué tareas tenés tildadas (así el
 contenido de la rutina nunca sale del dispositivo). Sábado y domingo no
 avisan porque esos bloques son "Libre", sin horario fijo.
 
+El mismo botón también activa un **aviso de cumpleaños** ("🎂 Mañana
+cumple: {nombre(s)}"), un día antes, fijo y sin configuración en la UI. Al
+activar recordatorios (y en cada alta/edición/baja de un cumpleaños
+mientras sigan activos) la app sincroniza la lista actual de cumpleaños
+(solo nombre/día/mes, nunca año ni categoría) al Worker; al desactivar,
+se borra tanto la suscripción como esa lista.
+
 Como la app no tiene servidor propio, esto necesita sí o sí una piecita
 externa que dispare el envío a la hora justa (ninguna magia de PWA lo
 resuelve sin backend). Se implementó como un **Worker de Cloudflare**
 (gratis, sin tarjeta) en `cloudflare/`, con Cron Triggers a esos 3 horarios
-y un KV namespace donde se guarda la suscripción del celular. Ese Worker
-**no se deployea solo** ni desde el CI de este repo — es un setup manual,
-una sola vez:
+más uno diario (8:00 ART) para el aviso de cumpleaños, y un KV namespace
+donde se guardan la suscripción del celular y la lista de cumpleaños. Ese
+Worker **no se deployea solo** ni desde el CI de este repo — es un setup
+manual, una sola vez:
 
 ```
 cd cloudflare
@@ -194,17 +207,22 @@ npx wrangler deploy
 ```
 
 La clave privada VAPID es lo único sensible de todo esto — vive solo como
-secreto de Cloudflare, nunca en el repo (que es público). El endpoint
-`/subscribe` no tiene autenticación (nadie más lo necesita: es un solo
-dispositivo suscripto); el peor caso si alguien lo encuentra y lo usa mal
-es que los recordatorios dejen de llegar hasta volver a tocar "Activar" —
-ningún dato personal se expone, porque el Worker nunca devuelve lo que
-tiene guardado, solo lo usa para mandar el push.
+secreto de Cloudflare, nunca en el repo (que es público). Ninguno de los
+endpoints (`/subscribe`, `/unsubscribe`, `/birthdays`) tiene autenticación
+(nadie más lo necesita: es un solo dispositivo suscripto); el peor caso si
+alguien los encuentra y los usa mal es que los recordatorios dejen de
+llegar hasta volver a tocar "Activar" — el Worker nunca devuelve lo que
+tiene guardado, solo lo usa para mandar el push. Sincronizar cumpleaños sí
+es una ampliación real del modelo de privacidad (nombres y fechas de
+nacimiento reales, ahora en la KV de Cloudflare además del dispositivo),
+aceptada porque ese dato ya es público de cualquier forma (el sitio no
+tiene login) y se borra al desactivar recordatorios.
 
-Ver `docs/specs/2026-08-18-recordatorios-push.md` para el diseño completo
-(qué quedó afuera a propósito: recordatorio por tarea individual, fin de
-semana, saltear el aviso si ya tildaste todo, más de un dispositivo
-suscripto).
+Ver `docs/specs/2026-08-18-recordatorios-push.md` (Nivel 16) y
+`docs/specs/2026-08-18-nivel17-racha-cumples-caminata.md` (Nivel 17) para
+el diseño completo (qué quedó afuera a propósito: recordatorio por tarea
+individual, fin de semana, más de un dispositivo suscripto, aviso de
+cumpleaños configurable, racha con perdones, gráfico de caminatas).
 
 ## Roadmap (niveles)
 
@@ -316,3 +334,13 @@ El proyecto avanza por niveles definidos junto con el usuario:
   tildaste) para que el checklist siga sin salir nunca del dispositivo.
   Ver [Recordatorios push](#recordatorios-push) arriba para el setup y
   `docs/specs/2026-08-18-recordatorios-push.md` para el diseño completo.
+- **Nivel 17** — racha de rutina ("🔥 N días seguidos", con historial
+  persistente por fecha calendario y cálculo en vivo), aviso de
+  cumpleaños push (reutiliza el Worker del Nivel 16, un día antes,
+  endpoint nuevo `/birthdays`) y panel de estadísticas de caminata
+  (distancia total, esta semana, este mes, racha de días caminados,
+  mejor caminata). `computeStreak()` en `logic.js` calcula ambas rachas
+  (rutina y caminata) con el mismo algoritmo. Ver
+  [Recordatorios push](#recordatorios-push) arriba y
+  `docs/specs/2026-08-18-nivel17-racha-cumples-caminata.md` para el
+  diseño completo.
