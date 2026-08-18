@@ -1538,7 +1538,9 @@ if (reminderBtn && 'serviceWorker' in navigator && 'PushManager' in window && 'N
       }
     }catch(e){
       console.error('No se pudo cambiar el estado de los recordatorios', e);
-      setReminderStatus('Algo falló activando los recordatorios. Probá de nuevo.');
+      // TEMPORAL (diagnóstico 2026-08-18, revertir después): mostrar el
+      // detalle real del error en vez del mensaje genérico.
+      setReminderStatus('Algo falló activando los recordatorios: [' + (e && e.name) + '] ' + (e && e.message ? e.message : e) + '. Probá de nuevo.');
     }finally{
       reminderBtn.disabled = false;
     }
