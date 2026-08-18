@@ -35,9 +35,15 @@
     }).sort((a,b) => a.diff - b.diff);
   }
 
+  // Offset lunes=0..domingo=6 a partir de getDay() (0=domingo..6=sabado).
+  // Compartido por todayKey() y walkDistanceThisWeek() más abajo — mismo
+  // criterio de "la semana arranca el lunes" en todo el archivo.
+  function mondayOffset(now){
+    return (now.getDay() + 6) % 7;
+  }
+
   function todayKey(now, order){
-    const jsDay = now.getDay(); // 0=domingo..6=sabado
-    return order[(jsDay + 6) % 7];
+    return order[mondayOffset(now)];
   }
 
   function isoDate(now){
@@ -102,8 +108,7 @@
 
   // Semana empieza el lunes (mismo criterio que ORDER/todayKey en el resto de la app).
   function walkDistanceThisWeek(history, now){
-    const offset = (now.getDay() + 6) % 7;
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset).getTime();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset(now)).getTime();
     return sumWalkDistanceSince(history, start);
   }
 

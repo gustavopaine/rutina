@@ -63,13 +63,20 @@ async function sendPush(env, subscription, message){
   }
 }
 
-async function handleSubscribe(request, env){
-  let sub;
+// Parsea el body como JSON; { ok:false, response } con un 400 ya armado si
+// falla, o { ok:true, data }. Compartido entre /subscribe y /birthdays.
+async function parseJsonBody(request, env){
   try {
-    sub = await request.json();
+    return { ok: true, data: await request.json() };
   } catch {
-    return new Response('JSON inválido', { status: 400, headers: corsHeaders(env) });
+    return { ok: false, response: new Response('JSON inválido', { status: 400, headers: corsHeaders(env) }) };
   }
+}
+
+async function handleSubscribe(request, env){
+  const parsed = await parseJsonBody(request, env);
+  if (!parsed.ok) return parsed.response;
+  const sub = parsed.data;
   if (!isValidSubscription(sub)){
     return new Response('Suscripción con forma inválida', { status: 400, headers: corsHeaders(env) });
   }
@@ -89,12 +96,9 @@ async function handleBirthdays(request, env){
   if (!hasSubscription){
     return new Response('No hay suscripción activa', { status: 400, headers: corsHeaders(env) });
   }
-  let list;
-  try {
-    list = await request.json();
-  } catch {
-    return new Response('JSON inválido', { status: 400, headers: corsHeaders(env) });
-  }
+  const parsed = await parseJsonBody(request, env);
+  if (!parsed.ok) return parsed.response;
+  const list = parsed.data;
   if (!isValidBirthdayList(list)){
     return new Response('Lista de cumpleaños con forma inválida', { status: 400, headers: corsHeaders(env) });
   }

@@ -209,11 +209,16 @@ npx wrangler deploy
 La clave privada VAPID es lo único sensible de todo esto — vive solo como
 secreto de Cloudflare, nunca en el repo (que es público). Ninguno de los
 endpoints (`/subscribe`, `/unsubscribe`, `/birthdays`) tiene autenticación
-(nadie más lo necesita: es un solo dispositivo suscripto); el peor caso si
-alguien los encuentra y los usa mal es que los recordatorios dejen de
-llegar hasta volver a tocar "Activar" — el Worker nunca devuelve lo que
-tiene guardado, solo lo usa para mandar el push. Sincronizar cumpleaños sí
-es una ampliación real del modelo de privacidad (nombres y fechas de
+(nadie más lo necesita: es un solo dispositivo suscripto) — el Worker nunca
+devuelve lo que tiene guardado, solo lo usa para mandar el push. El peor
+caso si alguien encuentra y usa mal `/subscribe` o `/unsubscribe` es que
+los recordatorios dejen de llegar hasta volver a tocar "Activar". Con
+`/birthdays` el peor caso es un poco peor: mientras haya una suscripción
+activa, cualquiera puede sobrescribir la lista de cumpleaños con nombres
+inventados, y esos nombres van a aparecer tal cual en el próximo push de
+cumpleaños real ("🎂 Mañana cumple: …") — molesto, pero sin exponer ni
+comprometer ningún dato existente. Sincronizar cumpleaños de por sí ya es
+una ampliación real del modelo de privacidad (nombres y fechas de
 nacimiento reales, ahora en la KV de Cloudflare además del dispositivo),
 aceptada porque ese dato ya es público de cualquier forma (el sitio no
 tiene login) y se borra al desactivar recordatorios.

@@ -290,7 +290,7 @@ function loadRoutineHistory(){
 }
 function saveRoutineHistory(history){
   try{ localStorage.setItem(STREAK_STORAGE_KEY, JSON.stringify(history)); }
-  catch(e){ console.error('No se pudo guardar el historial de racha', e); }
+  catch(e){ console.error('No se pudo guardar el historial de racha', e); showSaveError('No se pudo guardar tu racha de rutina.'); }
 }
 
 // Si cambió el día calendario desde la última vez que se abrió la app (ver
@@ -299,6 +299,12 @@ function saveRoutineHistory(history){
 // así, lo agrega al historial persistente. Corre una sola vez por apertura
 // en un día distinto — mismo punto donde loadCheckState() ya detecta el
 // cambio de día.
+// Decisión de spec (docs/specs/2026-08-18-nivel17-racha-cumples-caminata.md):
+// se mide contra la rutina tal cual está AHORA, no una foto del día en
+// cuestión — así un día con tareas agregadas/borradas se mide contra la
+// versión editada. Trade-off aceptado: si se agrega o borra un ítem de ese
+// día después de completarlo pero antes de que cambie la fecha, el conteo
+// puede no reflejar lo que realmente se tildó en su momento.
 function closeRoutineHistoryIfDayChanged(){
   const today = isoDate(new Date());
   if (!previousLastActive || previousLastActive === today) return;
@@ -321,14 +327,22 @@ function closeRoutineHistoryIfDayChanged(){
 }
 closeRoutineHistoryIfDayChanged();
 
+// Cuántos ítems tiene el día `dayKey` y cuántos están tildados — compartido
+// por renderDay() (progreso del día que se está viendo) y renderStreakBadge()
+// (siempre sobre el día de hoy, sea o no el que se está viendo).
+function countDone(dayKey){
+  const day = routine[dayKey];
+  const total = totalItems(day);
+  const done = day.blocks.reduce((s, b) => s + b.items.filter(i => state[dayKey].has(i.id)).length, 0);
+  return { total, done };
+}
+
 function renderStreakBadge(){
   const el = document.getElementById('streakBadge');
   if (!el) return;
   const today = isoDate(new Date());
   const todaysKey = todayKey(new Date(), ORDER);
-  const day = routine[todaysKey];
-  const total = totalItems(day);
-  const done = day.blocks.reduce((s, b) => s + b.items.filter(i => state[todaysKey].has(i.id)).length, 0);
+  const { total, done } = countDone(todaysKey);
   const todayCompleted = total > 0 && done === total;
   const history = loadRoutineHistory().filter(d => d !== today);
   const streak = computeStreak(history, today, todayCompleted);
@@ -471,7 +485,10 @@ async function loadBirthdays(){
 async function saveBirthdays(){
   try{ localStorage.setItem(BIRTHDAYS_STORAGE_KEY, JSON.stringify(birthdays)); }
   catch(e){ console.error('No se pudo guardar la lista de cumpleaños', e); showSaveError('No se pudo guardar el cumpleaños.'); }
-  await syncBirthdaysToWorker();
+  // Sin await a propósito: es un best-effort en segundo plano (tiene su
+  // propio try/catch), no queremos que agregar/editar/borrar un cumpleaños
+  // se sienta colgado esperando una respuesta de red.
+  syncBirthdaysToWorker();
 }
 
 async function submitBirthdayForm(){
@@ -1269,8 +1286,7 @@ function renderDay(){
     wrap.appendChild(el);
   });
 
-  const total = totalItems(day);
-  const done = day.blocks.reduce((s, b) => s + b.items.filter(i => state[dayKey].has(i.id)).length, 0);
+  const { total, done } = countDone(dayKey);
   document.getElementById('progFill').style.width = (total? (done/total*100):0) + '%';
   document.getElementById('progLabel').textContent = done + '/' + total;
   renderStreakBadge();
@@ -1360,6 +1376,7 @@ function exportData(){
     library: localStorage.getItem(LIB_STORAGE_KEY),
     birthdays: localStorage.getItem(BIRTHDAYS_STORAGE_KEY),
     routine: localStorage.getItem(ROUTINE_STORAGE_KEY),
+    routineHistory: localStorage.getItem(STREAK_STORAGE_KEY),
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1384,6 +1401,7 @@ function importData(file){
       if (payload.library) localStorage.setItem(LIB_STORAGE_KEY, payload.library);
       if (payload.birthdays) localStorage.setItem(BIRTHDAYS_STORAGE_KEY, payload.birthdays);
       if (payload.routine) localStorage.setItem(ROUTINE_STORAGE_KEY, payload.routine);
+      if (payload.routineHistory) localStorage.setItem(STREAK_STORAGE_KEY, payload.routineHistory);
       alert('Datos importados correctamente. La página se va a recargar.');
       location.reload();
     }catch(e){
@@ -1427,19 +1445,23 @@ const PUSH_SERVER_URL = 'https://rutina-veronica-push.gustavopaine.workers.dev';
 // activar recordatorios y en cada alta/edición/baja de un cumpleaños; si no
 // hay suscripción activa no manda nada (el Worker igual la rechazaría, ver
 // docs/specs/2026-08-18-nivel17-racha-cumples-caminata.md).
+// No relee localStorage acá: usa el `birthdays` en memoria tal cual está
+// (el llamador es responsable de que esté al día — ver saveBirthdays() y
+// subscribeToReminders()). Releerlo acá pisaría un guardado que acaba de
+// fallar con la versión vieja de disco, en vez de sincronizar la nueva.
 async function syncBirthdaysToWorker(){
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try{
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
     if (!subscription) return;
-    await loadBirthdays();
     const payload = birthdays.map(b => ({ name: b.name, day: b.day, month: b.month }));
-    await fetch(`${PUSH_SERVER_URL}/birthdays`, {
+    const response = await fetch(`${PUSH_SERVER_URL}/birthdays`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    if (!response.ok) console.error('El servidor de recordatorios rechazó la sincronización de cumpleaños', response.status);
   }catch(e){ console.error('No se pudo sincronizar los cumpleaños con el servidor de recordatorios', e); }
 }
 
@@ -1489,6 +1511,9 @@ async function subscribeToReminders(){
     setReminderStatus('No se pudo activar: el servidor de recordatorios no respondió. Probá de nuevo en un rato.');
     return false;
   }
+  // Si nunca se visitó la pestaña Cumples esta sesión, `birthdays` sigue en
+  // su valor inicial ([]) — hay que cargarlo antes de sincronizar.
+  await loadBirthdays();
   await syncBirthdaysToWorker();
   return true;
 }
