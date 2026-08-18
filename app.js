@@ -16,7 +16,7 @@ const DAY_COLORS = {
   biblioteca: ['#A487F5', '#8360E8'],
 };
 
-const DATA = {
+const DEFAULT_DATA = {
   lunes: { label:"Lunes", tag:"Escuela + caminata", weekend:false, blocks:[
     { title:"Mañana", emoji:"🌅", time:"6:00 – 12:30", items:[
       {t:"Despertar", e:"⏰"},
@@ -162,6 +162,7 @@ const DATA = {
 };
 
 const ORDER = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
+const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, geolocationErrorMessage } = window.RutinaLogic;
 const CHECK_STORAGE_KEY = 'veronica-checklist-state';
 
 function loadCheckState(){
@@ -186,11 +187,65 @@ function saveCheckState(){
 
 const state = loadCheckState();
 
-function todayKey(){
-  const jsDay = new Date().getDay(); // 0=domingo..6=sabado
-  return ORDER[(jsDay + 6) % 7];
+// ---- Rutina semanal editable desde la app (persiste en localStorage) ----
+const ROUTINE_STORAGE_KEY = 'veronica-routine';
+
+function seedRoutine(){
+  const seeded = {};
+  ORDER.forEach(dayKey => {
+    const day = DEFAULT_DATA[dayKey];
+    seeded[dayKey] = {
+      label: day.label,
+      tag: day.tag,
+      weekend: day.weekend,
+      blocks: day.blocks.map((block, bIdx) => ({
+        title: block.title,
+        emoji: block.emoji,
+        time: block.time,
+        items: block.items.map((item, iIdx) => ({ ...item, id: `seed-${dayKey}-${bIdx}-${iIdx}` })),
+      })),
+    };
+  });
+  return seeded;
 }
-let current = todayKey();
+
+function loadRoutine(){
+  try{
+    const raw = localStorage.getItem(ROUTINE_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  }catch(e){ console.error('No se pudo leer la rutina guardada', e); }
+  const seeded = seedRoutine();
+  try{ localStorage.setItem(ROUTINE_STORAGE_KEY, JSON.stringify(seeded)); }catch(e){ /* seguimos igual aunque no se pueda guardar */ }
+  return seeded;
+}
+function saveRoutine(){
+  try{ localStorage.setItem(ROUTINE_STORAGE_KEY, JSON.stringify(routine)); }
+  catch(e){ console.error('No se pudo guardar la rutina', e); }
+}
+
+const routine = loadRoutine();
+let addingToBlock = null; // índice de bloque del día actual con el mini-formulario abierto, o null
+let editingItemId = null; // id del item que se está editando en el día actual, o null
+
+function addRoutineItem(dayKey, blockIdx, text, emoji){
+  const item = { id: Date.now().toString(), t: text, e: emoji || '📌' };
+  routine[dayKey].blocks[blockIdx].items.push(item);
+  saveRoutine();
+}
+function updateRoutineItem(dayKey, blockIdx, itemId, text, emoji){
+  const item = routine[dayKey].blocks[blockIdx].items.find(i => i.id === itemId);
+  if (item){ item.t = text; item.e = emoji || item.e; }
+  saveRoutine();
+}
+function deleteRoutineItem(dayKey, blockIdx, itemId){
+  const block = routine[dayKey].blocks[blockIdx];
+  block.items = block.items.filter(i => i.id !== itemId);
+  state[dayKey].delete(itemId);
+  saveCheckState();
+  saveRoutine();
+}
+
+let current = todayKey(new Date(), ORDER);
 
 // ---- Cumpleaños (mismos datos que la rutina de Lara) ----
 const CAT_COLOR = {
@@ -277,19 +332,8 @@ const MONTH_NAMES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","A
    LÓGICA a partir de acá — no hace falta tocarla para editar contenido.
    ========================================================================= */
 
-function daysUntilInfo(month, day){
-  const today = new Date(); today.setHours(0,0,0,0);
-  let year = today.getFullYear();
-  let target = new Date(year, month-1, day); target.setHours(0,0,0,0);
-  if (target < today) target = new Date(year+1, month-1, day);
-  const diff = Math.round((target - today) / 86400000);
-  return { diff, target };
-}
 function getSortedBirthdays(){
-  return birthdays.map(b => {
-    const info = daysUntilInfo(b.month, b.day);
-    return { ...b, diff: info.diff, targetMonth: info.target.getMonth() };
-  }).sort((a,b) => a.diff - b.diff);
+  return sortBirthdaysByNextOccurrence(birthdays, new Date());
 }
 
 // ---- Cumpleaños editables desde la app (persisten en localStorage) ----
@@ -376,7 +420,7 @@ function renderTabs(){
       btn.className = 'tab libtab' + (key===current?' active':'');
       btn.textContent = '🎵 Biblioteca';
     } else {
-      const d = DATA[key];
+      const d = DEFAULT_DATA[key];
       btn.className = 'tab' + (key===current?' active':'');
       btn.textContent = d.label.slice(0,3);
     }
@@ -386,6 +430,7 @@ function renderTabs(){
     }
     btn.onclick = () => {
       current = key; renderTabs();
+      addingToBlock = null; editingItemId = null;
       if (current==='cumples') renderBirthdays();
       else if (current==='caminata') renderWalk();
       else if (current==='biblioteca') renderLibrary();
@@ -503,7 +548,9 @@ async function renderBirthdays(){
       </div>
     `;
     row.querySelector('.bday-edit').onclick = () => fillBirthdayForm(b);
-    row.querySelector('.bday-del').onclick = () => deleteBirthday(b.id);
+    row.querySelector('.bday-del').onclick = () => {
+      if (confirm(`¿Borrar el cumpleaños de ${b.name}?`)) deleteBirthday(b.id);
+    };
     wrap.appendChild(row);
   });
 }
@@ -540,22 +587,6 @@ document.addEventListener('visibilitychange', () => {
     requestWakeLock();
   }
 });
-
-function haversine(a, b){
-  const R = 6371000;
-  const dLat = (b.lat - a.lat) * Math.PI/180;
-  const dLng = (b.lng - a.lng) * Math.PI/180;
-  const la1 = a.lat * Math.PI/180, la2 = b.lat * Math.PI/180;
-  const h = Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1-h));
-}
-
-function formatDuration(ms){
-  const totalSec = Math.floor(ms/1000);
-  const m = Math.floor(totalSec/60);
-  const s = totalSec % 60;
-  return `${m}:${s.toString().padStart(2,'0')}`;
-}
 
 async function loadWalkHistory(){
   try{
@@ -633,19 +664,6 @@ function updateWalkStatsUI(){
   }
 
   return { distKm, elapsed, steps };
-}
-
-function geolocationErrorMessage(err){
-  if (err.code === err.PERMISSION_DENIED){
-    return 'No diste permiso de ubicación. Revisá los permisos de este sitio en la configuración del navegador o del celular y volvé a intentar.';
-  }
-  if (err.code === err.POSITION_UNAVAILABLE){
-    return 'No se pudo obtener tu ubicación. Verificá que el GPS esté activado.';
-  }
-  if (err.code === err.TIMEOUT){
-    return 'Tardó demasiado en encontrar tu ubicación. Probá de nuevo en un lugar más despejado (a cielo abierto).';
-  }
-  return 'No pude acceder a la ubicación. Revisá los permisos del navegador.';
 }
 
 function startWalk(){
@@ -754,6 +772,7 @@ async function renderWalk(){
 // ---- Biblioteca de música/audios/videos para el camino ----
 const LIB_STORAGE_KEY = 'veronica-media-library';
 let libraryItems = [];
+let editingLibraryId = null;
 
 // Accesos rápidos verificados (canal y perfil oficiales de Euge Quevedo + búsquedas de cuarteto)
 const QUICK_LINKS = [
@@ -798,10 +817,17 @@ function renderLibraryItems(){
           <div class="lib-item-type">${LIB_TYPE_LABEL[item.type] || 'Música'}</div>
         </div>
       </a>
+      <button class="lib-edit" data-id="${item.id}" aria-label="Editar ${item.title}">✏️</button>
       <button class="lib-del" data-id="${item.id}" aria-label="Borrar ${item.title} de la biblioteca">✕</button>
     `;
+    row.querySelector('.lib-edit').onclick = () => {
+      editingLibraryId = item.id;
+      renderLibrary();
+    };
     row.querySelector('.lib-del').onclick = async () => {
+      if (!confirm(`¿Borrar "${item.title}" de tu biblioteca?`)) return;
       libraryItems = libraryItems.filter(i => i.id !== item.id);
+      if (editingLibraryId === item.id) editingLibraryId = null;
       await saveLibrary();
       renderLibraryItems();
     };
@@ -809,7 +835,7 @@ function renderLibraryItems(){
   });
 }
 
-async function addLibraryItem(){
+async function submitLibraryForm(){
   const titleEl = document.getElementById('libTitleInput');
   const urlEl = document.getElementById('libUrlInput');
   const typeEl = document.getElementById('libTypeInput');
@@ -817,10 +843,15 @@ async function addLibraryItem(){
   let url = urlEl.value.trim();
   if (!title || !url) { alert('Completá el nombre y el link.'); return; }
   if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-  libraryItems.push({ id: Date.now().toString(), title, url, type: typeEl.value });
+  if (editingLibraryId){
+    const entry = libraryItems.find(i => i.id === editingLibraryId);
+    if (entry){ entry.title = title; entry.url = url; entry.type = typeEl.value; }
+    editingLibraryId = null;
+  } else {
+    libraryItems.push({ id: Date.now().toString(), title, url, type: typeEl.value });
+  }
   await saveLibrary();
-  titleEl.value = ''; urlEl.value = '';
-  renderLibraryItems();
+  renderLibrary();
 }
 
 async function renderLibrary(){
@@ -834,7 +865,7 @@ async function renderLibrary(){
     <div class="lib-section-title">Accesos rápidos</div>
     <div class="lib-grid" id="libQuickGrid"></div>
 
-    <div class="lib-section-title">Agregar a tu biblioteca</div>
+    <div class="lib-section-title">${editingLibraryId ? 'Editar item' : 'Agregar a tu biblioteca'}</div>
     <div class="lib-form">
       <label for="libTitleInput">Nombre</label>
       <input type="text" id="libTitleInput" placeholder="Nombre (ej: Playlist para caminar)">
@@ -846,7 +877,8 @@ async function renderLibrary(){
         <option value="audio">🎙️ Audio / podcast</option>
         <option value="video">📺 Video</option>
       </select>
-      <button class="lib-add-btn" id="libAddBtn">+ Guardar en mi biblioteca</button>
+      <button class="lib-add-btn" id="libAddBtn">${editingLibraryId ? '💾 Guardar cambios' : '+ Guardar en mi biblioteca'}</button>
+      ${editingLibraryId ? '<button class="bday-cancel-btn" id="libCancelBtn" type="button">Cancelar edición</button>' : ''}
     </div>
 
     <div class="lib-section-title">Tu biblioteca</div>
@@ -864,17 +896,30 @@ async function renderLibrary(){
     grid.appendChild(a);
   });
 
-  document.getElementById('libAddBtn').onclick = addLibraryItem;
+  document.getElementById('libAddBtn').onclick = submitLibraryForm;
+  if (editingLibraryId){
+    document.getElementById('libCancelBtn').onclick = () => { editingLibraryId = null; renderLibrary(); };
+  }
 
   await loadLibrary();
+
+  if (editingLibraryId){
+    const entry = libraryItems.find(i => i.id === editingLibraryId);
+    if (entry){
+      document.getElementById('libTitleInput').value = entry.title;
+      document.getElementById('libUrlInput').value = entry.url;
+      document.getElementById('libTypeInput').value = entry.type;
+    }
+  }
   renderLibraryItems();
 }
 
 function renderDay(){
-  const day = DATA[current];
+  const dayKey = current;
+  const day = routine[dayKey];
   const wrap = document.getElementById('dayContent');
   wrap.innerHTML = '';
-  const [c1, c2] = DAY_COLORS[current];
+  const [c1, c2] = DAY_COLORS[dayKey];
 
   const banner = document.createElement('div');
   banner.className = 'day-banner';
@@ -896,30 +941,92 @@ function renderDay(){
         <h2>${block.title}</h2>
         <span class="time" style="background:linear-gradient(120deg, ${c1}, ${c2})">${block.time}</span>
       </div>`;
-    block.items.forEach((item, iIdx) => {
-      const key = bIdx+'-'+iIdx;
-      const isDone = state[current].has(key);
+    block.items.forEach((item) => {
+      if (editingItemId === item.id){
+        const editRow = document.createElement('div');
+        editRow.className = 'item-edit-form';
+        editRow.innerHTML = `
+          <input type="text" class="item-edit-emoji" value="${item.e}" maxlength="4" aria-label="Emoji de la tarea">
+          <input type="text" class="item-edit-text" value="${item.t}" aria-label="Texto de la tarea">
+          <button type="button" class="item-edit-save">💾</button>
+          <button type="button" class="item-edit-cancel">✕</button>
+        `;
+        editRow.querySelector('.item-edit-save').onclick = () => {
+          const text = editRow.querySelector('.item-edit-text').value.trim();
+          const emoji = editRow.querySelector('.item-edit-emoji').value.trim();
+          if (!text) { alert('La tarea necesita un texto.'); return; }
+          updateRoutineItem(dayKey, bIdx, item.id, text, emoji);
+          editingItemId = null;
+          renderDay();
+        };
+        editRow.querySelector('.item-edit-cancel').onclick = () => { editingItemId = null; renderDay(); };
+        el.appendChild(editRow);
+        return;
+      }
+
+      const isDone = state[dayKey].has(item.id);
       const row = document.createElement('label');
       row.className = 'item' + (item.special?' special':'') + (item.walk?' walk':'') + (item.wa?' wa':'') + (isDone?' done':'');
       row.innerHTML = `
         <input type="checkbox" class="item-checkbox" ${isDone ? 'checked' : ''}>
         <span class="checkbox" aria-hidden="true" style="${isDone ? `background:linear-gradient(135deg, ${c1}, ${c2}); border-color:${c1};` : `border-color:${c1};`}"><svg width="12" height="10" viewBox="0 0 12 10" fill="none"><path d="M1 5L4.5 8.5L11 1.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         <span class="item-emoji" aria-hidden="true">${item.e}</span>
-        <span class="item-text">${item.t}</span>`;
+        <span class="item-text">${item.t}</span>
+        <button type="button" class="item-edit-btn" aria-label="Editar ${item.t}">✏️</button>
+        <button type="button" class="item-del-btn" aria-label="Borrar ${item.t}">✕</button>`;
       row.querySelector('.item-checkbox').addEventListener('click', (ev) => {
         const checked = ev.target.checked;
-        if (checked) { state[current].add(key); burstConfetti(ev.clientX, ev.clientY); }
-        else { state[current].delete(key); }
+        if (checked) { state[dayKey].add(item.id); burstConfetti(ev.clientX, ev.clientY); }
+        else { state[dayKey].delete(item.id); }
         saveCheckState();
+        renderDay();
+      });
+      row.querySelector('.item-edit-btn').addEventListener('click', (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        editingItemId = item.id; addingToBlock = null;
+        renderDay();
+      });
+      row.querySelector('.item-del-btn').addEventListener('click', (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        if (confirm(`¿Borrar la tarea "${item.t}"?`)) deleteRoutineItem(dayKey, bIdx, item.id);
         renderDay();
       });
       el.appendChild(row);
     });
+
+    if (addingToBlock === bIdx){
+      const addRow = document.createElement('div');
+      addRow.className = 'item-edit-form';
+      addRow.innerHTML = `
+        <input type="text" class="item-add-emoji" placeholder="📌" maxlength="4" aria-label="Emoji de la nueva tarea">
+        <input type="text" class="item-add-text" placeholder="Nueva tarea" aria-label="Texto de la nueva tarea">
+        <button type="button" class="item-edit-save">+</button>
+        <button type="button" class="item-edit-cancel">✕</button>
+      `;
+      addRow.querySelector('.item-edit-save').onclick = () => {
+        const text = addRow.querySelector('.item-add-text').value.trim();
+        const emoji = addRow.querySelector('.item-add-emoji').value.trim();
+        if (!text) { alert('La tarea necesita un texto.'); return; }
+        addRoutineItem(dayKey, bIdx, text, emoji);
+        addingToBlock = null;
+        renderDay();
+      };
+      addRow.querySelector('.item-edit-cancel').onclick = () => { addingToBlock = null; renderDay(); };
+      el.appendChild(addRow);
+    } else {
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'block-add-btn';
+      addBtn.textContent = '+ Agregar tarea';
+      addBtn.onclick = () => { addingToBlock = bIdx; editingItemId = null; renderDay(); };
+      el.appendChild(addBtn);
+    }
+
     wrap.appendChild(el);
   });
 
   const total = totalItems(day);
-  const done = state[current].size;
+  const done = day.blocks.reduce((s, b) => s + b.items.filter(i => state[dayKey].has(i.id)).length, 0);
   document.getElementById('progFill').style.width = (total? (done/total*100):0) + '%';
   document.getElementById('progLabel').textContent = done + '/' + total;
 }
@@ -1006,6 +1113,7 @@ function exportData(){
     walks: localStorage.getItem(STORAGE_KEY),
     library: localStorage.getItem(LIB_STORAGE_KEY),
     birthdays: localStorage.getItem(BIRTHDAYS_STORAGE_KEY),
+    routine: localStorage.getItem(ROUTINE_STORAGE_KEY),
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1024,10 +1132,12 @@ function importData(file){
     try{
       const payload = JSON.parse(reader.result);
       if (payload.app !== 'rutina-veronica') throw new Error('formato desconocido');
+      if (!confirm('Esto va a reemplazar todos los datos actuales (rutina, cumpleaños, caminatas, biblioteca) con los del archivo. ¿Continuar?')) return;
       if (payload.checklist) localStorage.setItem(CHECK_STORAGE_KEY, payload.checklist);
       if (payload.walks) localStorage.setItem(STORAGE_KEY, payload.walks);
       if (payload.library) localStorage.setItem(LIB_STORAGE_KEY, payload.library);
       if (payload.birthdays) localStorage.setItem(BIRTHDAYS_STORAGE_KEY, payload.birthdays);
+      if (payload.routine) localStorage.setItem(ROUTINE_STORAGE_KEY, payload.routine);
       alert('Datos importados correctamente. La página se va a recargar.');
       location.reload();
     }catch(e){

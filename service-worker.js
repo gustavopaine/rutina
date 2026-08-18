@@ -1,8 +1,9 @@
-const CACHE_NAME = 'rutina-veronica-v1';
+const CACHE_NAME = 'rutina-veronica-v2';
 const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
+  './logic.js',
   './app.js',
   './manifest.json',
   './icons/icon-192.png',

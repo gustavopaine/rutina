@@ -32,22 +32,41 @@ y abrir `http://localhost:8000/index.html`.
 ```
 index.html          Estructura de la página
 styles.css           Todos los estilos
-app.js                Datos + lógica de la app
+logic.js              Lógica pura sin DOM (fechas, distancia GPS) — testeable
+app.js                Datos "de fábrica" + resto de la lógica de la app
 manifest.json         Metadatos para instalar como PWA
 service-worker.js     Caché offline del "app shell"
 icons/                Íconos de la PWA (192, 512, maskable)
+tests/                Tests automáticos (Node, sin dependencias)
 ```
 
 ## Cómo editar contenido
 
 - **Cumpleaños**: se editan directo desde la pestaña "🎂 Cumples" (agregar,
   editar, borrar). No hace falta tocar código.
-- **Rutina semanal** (horarios y tareas de cada día): se edita en `app.js`,
-  dentro del bloque marcado `DATOS EDITABLES` al principio del archivo,
-  en la constante `DATA`. Cada día tiene bloques (`Mañana`/`Tarde`/`Noche`)
-  y cada bloque una lista de `items` con texto (`t`) y emoji (`e`).
-- **Accesos rápidos de música** (Biblioteca): constante `QUICK_LINKS` en
-  `app.js`, cerca de la sección de Biblioteca.
+- **Rutina semanal** (horarios y tareas de cada día): las tareas de cada
+  bloque (Mañana/Tarde/Noche) se agregan, editan y borran directo desde la
+  app, con los botones ✏️ / ✕ / "+ Agregar tarea" de cada bloque. Los
+  bloques en sí (cuáles hay y su horario) y los días de la semana quedan
+  fijos y se editan en `app.js`, dentro del bloque marcado `DATOS
+  EDITABLES`, en la constante `DEFAULT_DATA` — esa es solo la "semilla"
+  con la que arranca la app la primera vez; después de eso, los cambios
+  hechos desde la app tienen prioridad y viven en `localStorage`.
+- **Ítems de Biblioteca** que agregaste vos: se editan y borran desde la
+  propia pestaña "🎵 Biblioteca". Los **accesos rápidos** fijos (Euge
+  Quevedo, etc.) se editan en la constante `QUICK_LINKS` en `app.js`.
+
+## Tests automáticos
+
+La lógica pura (cálculo de días para un cumpleaños, distancia GPS, formato
+de tiempo, mensajes de error de ubicación) vive en `logic.js` y tiene tests
+en `tests/`. Para correrlos, con [Node.js](https://nodejs.org) instalado:
+
+```
+npm test
+```
+
+No hace falta instalar nada más (no usan ninguna dependencia externa).
 
 ## Dónde vive cada dato
 
@@ -72,6 +91,11 @@ El proyecto avanza por niveles definidos junto con el usuario:
 - **Nivel 3** — cumpleaños editables desde la app, exportar/importar datos,
   Wake Lock durante la caminata (no se apaga la pantalla) y mejores mensajes
   de error de GPS.
+- **Nivel 4** — tareas de la rutina semanal editables desde la app (como ya
+  pasaba con cumpleaños), confirmación antes de borrar o de importar un
+  backup (para no perder datos por error), ítems de Biblioteca editables
+  (antes solo se podían agregar/borrar), y una primera tanda de tests
+  automáticos (`logic.js` + `tests/`, corren con `npm test`).
 
 Publicar en un hosting público (GitHub Pages u otro) queda para una etapa
 posterior, a criterio del usuario — el sitio contiene datos personales reales

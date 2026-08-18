@@ -1,0 +1,8 @@
+{
+  "name": "rutina-veronica",
+  "private": true,
+  "description": "Rutina semanal, cumpleaños, caminata y biblioteca de música para Verónica.",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}
