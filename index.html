@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rutina de Verónica</title>
+<meta name="description" content="Rutina semanal, cumpleaños, caminata y biblioteca de música para Verónica.">
+<meta name="theme-color" content="#FF8A3D">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="stage-scene" aria-hidden="true">
+  <svg viewBox="0 0 700 340" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" preserveAspectRatio="xMidYMin slice">
+    <defs>
+      <radialGradient id="spot1" cx="50%" cy="0%" r="80%">
+        <stop offset="0%" stop-color="#FFC145" stop-opacity="0.7"/>
+        <stop offset="100%" stop-color="#FFC145" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="spot2" cx="15%" cy="0%" r="65%">
+        <stop offset="0%" stop-color="#FF5FA8" stop-opacity="0.55"/>
+        <stop offset="100%" stop-color="#FF5FA8" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="spot3" cx="85%" cy="0%" r="65%">
+        <stop offset="0%" stop-color="#2FD9C4" stop-opacity="0.55"/>
+        <stop offset="100%" stop-color="#2FD9C4" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="spot4" cx="50%" cy="10%" r="50%">
+        <stop offset="0%" stop-color="#A487F5" stop-opacity="0.4"/>
+        <stop offset="100%" stop-color="#A487F5" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <rect x="0" y="0" width="700" height="340" fill="url(#spot1)"/>
+    <rect x="0" y="0" width="700" height="340" fill="url(#spot2)"/>
+    <rect x="0" y="0" width="700" height="340" fill="url(#spot3)"/>
+    <rect x="0" y="0" width="700" height="340" fill="url(#spot4)"/>
+
+    <!-- rayos de luz de escenario -->
+    <polygon points="100,0 70,0 10,270 180,270" fill="#FFC145" opacity="0.22"/>
+    <polygon points="230,0 200,0 150,280 300,280" fill="#FF5FA8" opacity="0.18"/>
+    <polygon points="370,0 340,0 300,280 450,280" fill="#A487F5" opacity="0.18"/>
+    <polygon points="520,0 490,0 440,270 600,270" fill="#2FD9C4" opacity="0.2"/>
+    <polygon points="650,0 620,0 570,260 700,260" fill="#FF8A3D" opacity="0.18"/>
+
+    <!-- confeti -->
+    <g opacity="0.85">
+      <rect x="40" y="30" width="8" height="8" rx="2" fill="#FF5FA8" transform="rotate(20 44 34)"/>
+      <rect x="120" y="60" width="7" height="7" rx="2" fill="#FFC145" transform="rotate(-15 123 63)"/>
+      <circle cx="200" cy="20" r="5" fill="#2FD9C4"/>
+      <rect x="260" y="70" width="8" height="8" rx="2" fill="#A487F5" transform="rotate(35 264 74)"/>
+      <circle cx="320" cy="15" r="4" fill="#FF8A3D"/>
+      <rect x="400" y="45" width="7" height="7" rx="2" fill="#FF5FA8" transform="rotate(-25 403 48)"/>
+      <circle cx="460" cy="25" r="5" fill="#FFC145"/>
+      <rect x="530" y="65" width="8" height="8" rx="2" fill="#2FD9C4" transform="rotate(10 534 69)"/>
+      <circle cx="600" cy="18" r="4" fill="#A487F5"/>
+      <rect x="650" y="55" width="7" height="7" rx="2" fill="#FF8A3D" transform="rotate(-20 653 58)"/>
+    </g>
+
+    <!-- notas musicales flotando -->
+    <text x="55" y="110" font-size="30" opacity="0.55">🎵</text>
+    <text x="605" y="95" font-size="34" opacity="0.55">🎶</text>
+    <text x="330" y="55" font-size="26" opacity="0.5">🎺</text>
+    <text x="480" y="130" font-size="24" opacity="0.45">🥁</text>
+    <text x="150" y="140" font-size="24" opacity="0.45">🪗</text>
+    <text x="250" y="90" font-size="20" opacity="0.4">🎉</text>
+    <text x="560" y="150" font-size="20" opacity="0.4">🎊</text>
+
+    <!-- siluetas de banda de cuarteto tocando -->
+    <g fill="#4A3B47" opacity="0.2">
+      <!-- acordeonista -->
+      <circle cx="190" cy="190" r="18"/>
+      <rect x="172" y="206" width="36" height="52" rx="11"/>
+      <rect x="162" y="222" width="20" height="30" rx="4"/>
+      <rect x="198" y="222" width="20" height="30" rx="4"/>
+      <!-- cantante con micrófono -->
+      <circle cx="350" cy="175" r="19"/>
+      <rect x="331" y="192" width="38" height="58" rx="11"/>
+      <rect x="347" y="150" width="6" height="24" rx="3"/>
+      <circle cx="350" cy="145" r="8"/>
+      <!-- percusionista / bombo -->
+      <circle cx="510" cy="188" r="18"/>
+      <rect x="492" y="204" width="36" height="50" rx="11"/>
+      <ellipse cx="510" cy="262" rx="30" ry="12"/>
+      <!-- guitarrista -->
+      <circle cx="270" cy="200" r="15"/>
+      <rect x="255" y="215" width="30" height="44" rx="10"/>
+      <ellipse cx="270" cy="248" rx="16" ry="22" opacity="0.8"/>
+      <!-- baterista -->
+      <circle cx="430" cy="200" r="15"/>
+      <rect x="415" y="215" width="30" height="44" rx="10"/>
+    </g>
+  </svg>
+</div>
+<div id="confettiField" aria-hidden="true"></div>
+<div class="wrap">
+  <header>
+    <div class="vinyl" aria-hidden="true"></div>
+    <div class="soundbars" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+    <div class="kicker">🎤 Rutina semanal a puro cuarteto</div>
+    <h1>La semana de <span>Verónica</span> 🎉</h1>
+    <div class="sub">Cuarteto a pleno · Euge Quevedo · escuela de Lara</div>
+  </header>
+
+  <div class="tabs" id="tabs" role="tablist" aria-label="Días de la semana y secciones"></div>
+  <div id="dayContent" role="tabpanel" aria-live="polite"></div>
+
+  <footer>Tocá o presioná Enter en cada casillero para marcarlo como hecho 🎧<br>¡A puro ritmo toda la semana!</footer>
+</div>
+
+<script src="app.js" defer></script>
+</body>
+</html>

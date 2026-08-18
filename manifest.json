@@ -1,0 +1,17 @@
+{
+  "name": "Rutina de Verónica",
+  "short_name": "Rutina Vero",
+  "description": "Rutina semanal, cumpleaños, caminata y biblioteca de música para Verónica.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFF8EE",
+  "theme_color": "#FF8A3D",
+  "orientation": "portrait",
+  "lang": "es",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
