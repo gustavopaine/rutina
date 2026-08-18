@@ -202,7 +202,7 @@ const CAT_COLOR = {
   "Tío/a":"#FFC145",
   "Primo/a":"#3ADEC0",
 };
-const BIRTHDAYS = [
+const DEFAULT_BIRTHDAYS = [
   {name:"Verónica", day:19, month:8, cat:"Familia"},
   {name:"Lara", day:21, month:8, cat:"Familia"},
   {name:"Papá", day:23, month:4, cat:"Familia"},
@@ -286,10 +286,72 @@ function daysUntilInfo(month, day){
   return { diff, target };
 }
 function getSortedBirthdays(){
-  return BIRTHDAYS.map(b => {
+  return birthdays.map(b => {
     const info = daysUntilInfo(b.month, b.day);
     return { ...b, diff: info.diff, targetMonth: info.target.getMonth() };
   }).sort((a,b) => a.diff - b.diff);
+}
+
+// ---- Cumpleaños editables desde la app (persisten en localStorage) ----
+const BIRTHDAYS_STORAGE_KEY = 'veronica-birthdays';
+let birthdays = [];
+let editingBirthdayId = null;
+
+async function loadBirthdays(){
+  try{
+    const raw = localStorage.getItem(BIRTHDAYS_STORAGE_KEY);
+    if (raw){
+      birthdays = JSON.parse(raw);
+      return;
+    }
+  }catch(e){ console.error('No se pudo leer la lista de cumpleaños', e); }
+  birthdays = DEFAULT_BIRTHDAYS.map((b, i) => ({ ...b, id: 'seed-' + i }));
+  await saveBirthdays();
+}
+async function saveBirthdays(){
+  try{ localStorage.setItem(BIRTHDAYS_STORAGE_KEY, JSON.stringify(birthdays)); }
+  catch(e){ console.error('No se pudo guardar la lista de cumpleaños', e); }
+}
+
+async function submitBirthdayForm(){
+  const nameEl = document.getElementById('bdayNameInput');
+  const dayEl = document.getElementById('bdayDayInput');
+  const monthEl = document.getElementById('bdayMonthInput');
+  const catEl = document.getElementById('bdayCatInput');
+  const name = nameEl.value.trim();
+  const day = parseInt(dayEl.value, 10);
+  const month = parseInt(monthEl.value, 10);
+  const cat = catEl.value;
+  if (!name || !day || day < 1 || day > 31 || !month){
+    alert('Completá el nombre, el día (1-31) y el mes.');
+    return;
+  }
+  if (editingBirthdayId){
+    const entry = birthdays.find(b => b.id === editingBirthdayId);
+    if (entry){ entry.name = name; entry.day = day; entry.month = month; entry.cat = cat; }
+    editingBirthdayId = null;
+  } else {
+    birthdays.push({ id: Date.now().toString(), name, day, month, cat });
+  }
+  await saveBirthdays();
+  renderBirthdays();
+}
+
+function fillBirthdayForm(b){
+  editingBirthdayId = b.id;
+  document.getElementById('bdayNameInput').value = b.name;
+  document.getElementById('bdayDayInput').value = b.day;
+  document.getElementById('bdayMonthInput').value = b.month;
+  document.getElementById('bdayCatInput').value = b.cat;
+  document.getElementById('bdayFormSubmit').textContent = '💾 Guardar cambios';
+  document.getElementById('bdayNameInput').focus();
+}
+
+async function deleteBirthday(id){
+  birthdays = birthdays.filter(b => b.id !== id);
+  if (editingBirthdayId === id) editingBirthdayId = null;
+  await saveBirthdays();
+  renderBirthdays();
 }
 
 const TABS = [...ORDER, "caminata", "biblioteca", "cumples"];
@@ -333,24 +395,86 @@ function renderTabs(){
   });
 }
 
-function renderBirthdays(){
+async function renderBirthdays(){
+  await loadBirthdays();
   const wrap = document.getElementById('dayContent');
   wrap.innerHTML = '';
-  const sorted = getSortedBirthdays();
-  const next = sorted[0];
-  const hero = document.createElement('div');
-  hero.className = 'bday-hero';
-  hero.style.background = `linear-gradient(120deg, #8B6BFF, #FF4FA0, #8B6BFF)`;
-  const whenTxt = next.diff === 0 ? '¡Es hoy! 🎉' : (next.diff === 1 ? 'Es mañana' : `${MONTH_NAMES[next.targetMonth]} ${next.day}`);
-  const countdownTxt = next.diff === 0 ? '¡No te olvides de saludar!' : (next.diff === 1 ? 'Faltan 1 día' : `Faltan ${next.diff} días`);
-  hero.innerHTML = `
-    <div class="eyebrow">Próximo cumpleaños</div>
-    <div class="who">${next.name}</div>
-    <div class="when">${whenTxt} · ${next.cat}</div>
-    <div class="countdown">⏰ ${countdownTxt}</div>
-  `;
-  wrap.appendChild(hero);
 
+  if (birthdays.length){
+    const sorted = getSortedBirthdays();
+    const next = sorted[0];
+    const hero = document.createElement('div');
+    hero.className = 'bday-hero';
+    hero.style.background = `linear-gradient(120deg, #8B6BFF, #FF4FA0, #8B6BFF)`;
+    const whenTxt = next.diff === 0 ? '¡Es hoy! 🎉' : (next.diff === 1 ? 'Es mañana' : `${MONTH_NAMES[next.targetMonth]} ${next.day}`);
+    const countdownTxt = next.diff === 0 ? '¡No te olvides de saludar!' : (next.diff === 1 ? 'Faltan 1 día' : `Faltan ${next.diff} días`);
+    hero.innerHTML = `
+      <div class="eyebrow">Próximo cumpleaños</div>
+      <div class="who">${next.name}</div>
+      <div class="when">${whenTxt} · ${next.cat}</div>
+      <div class="countdown">⏰ ${countdownTxt}</div>
+    `;
+    wrap.appendChild(hero);
+  }
+
+  const formTitle = document.createElement('div');
+  formTitle.className = 'lib-section-title';
+  formTitle.textContent = editingBirthdayId ? 'Editar cumpleaños' : 'Agregar cumpleaños';
+  wrap.appendChild(formTitle);
+
+  const form = document.createElement('div');
+  form.className = 'bday-form';
+  const catOptions = Object.keys(CAT_COLOR).map(c => `<option value="${c}">${c}</option>`).join('');
+  form.innerHTML = `
+    <label for="bdayNameInput">Nombre</label>
+    <input type="text" id="bdayNameInput" placeholder="Nombre">
+    <div class="bday-form-row">
+      <div>
+        <label for="bdayDayInput">Día</label>
+        <input type="number" id="bdayDayInput" min="1" max="31" placeholder="Día">
+      </div>
+      <div>
+        <label for="bdayMonthInput">Mes</label>
+        <select id="bdayMonthInput">
+          <option value="">Mes</option>
+          ${MONTH_NAMES.map((m, i) => `<option value="${i+1}">${m}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <label for="bdayCatInput">Categoría</label>
+    <select id="bdayCatInput">${catOptions}</select>
+    <button class="bday-add-btn" id="bdayFormSubmit">${editingBirthdayId ? '💾 Guardar cambios' : '+ Agregar cumpleaños'}</button>
+    ${editingBirthdayId ? '<button class="bday-cancel-btn" id="bdayFormCancel" type="button">Cancelar edición</button>' : ''}
+  `;
+  wrap.appendChild(form);
+  document.getElementById('bdayFormSubmit').onclick = submitBirthdayForm;
+  if (editingBirthdayId){
+    document.getElementById('bdayFormCancel').onclick = () => { editingBirthdayId = null; renderBirthdays(); };
+  }
+  if (editingBirthdayId){
+    const entry = birthdays.find(b => b.id === editingBirthdayId);
+    if (entry){
+      document.getElementById('bdayNameInput').value = entry.name;
+      document.getElementById('bdayDayInput').value = entry.day;
+      document.getElementById('bdayMonthInput').value = entry.month;
+      document.getElementById('bdayCatInput').value = entry.cat;
+    }
+  }
+
+  if (!birthdays.length){
+    const empty = document.createElement('div');
+    empty.className = 'lib-empty';
+    empty.textContent = 'Todavía no hay cumpleaños cargados 🎂';
+    wrap.appendChild(empty);
+    return;
+  }
+
+  const listTitle = document.createElement('div');
+  listTitle.className = 'lib-section-title';
+  listTitle.textContent = 'Todos los cumpleaños';
+  wrap.appendChild(listTitle);
+
+  const sorted = getSortedBirthdays();
   let lastMonth = null;
   sorted.forEach((b, i) => {
     if (b.targetMonth !== lastMonth){
@@ -373,7 +497,13 @@ function renderBirthdays(){
         <span class="bday-tag" style="background:${color}">${b.cat}</span>
       </div>
       <div class="bday-days">${daysTxt}</div>
+      <div class="bday-actions">
+        <button class="bday-edit" aria-label="Editar ${b.name}">✏️</button>
+        <button class="bday-del" aria-label="Borrar ${b.name}">✕</button>
+      </div>
     `;
+    row.querySelector('.bday-edit').onclick = () => fillBirthdayForm(b);
+    row.querySelector('.bday-del').onclick = () => deleteBirthday(b.id);
     wrap.appendChild(row);
   });
 }
@@ -391,6 +521,25 @@ let walkWatchId = null, walkTracking = false;
 let walkPath = [], walkStartTime = null, walkTimerInterval = null;
 let walkHistory = [];
 let walkCurrentMode = 'walking'; // 'walking' | 'vehicle'
+let wakeLock = null;
+
+async function requestWakeLock(){
+  if (!('wakeLock' in navigator)) return;
+  try{
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  }catch(e){ console.error('No se pudo mantener la pantalla encendida', e); }
+}
+async function releaseWakeLock(){
+  if (!wakeLock) return;
+  try{ await wakeLock.release(); }catch(e){ /* ya liberado */ }
+  wakeLock = null;
+}
+document.addEventListener('visibilitychange', () => {
+  if (walkTracking && document.visibilityState === 'visible' && !wakeLock){
+    requestWakeLock();
+  }
+});
 
 function haversine(a, b){
   const R = 6371000;
@@ -486,6 +635,19 @@ function updateWalkStatsUI(){
   return { distKm, elapsed, steps };
 }
 
+function geolocationErrorMessage(err){
+  if (err.code === err.PERMISSION_DENIED){
+    return 'No diste permiso de ubicación. Revisá los permisos de este sitio en la configuración del navegador o del celular y volvé a intentar.';
+  }
+  if (err.code === err.POSITION_UNAVAILABLE){
+    return 'No se pudo obtener tu ubicación. Verificá que el GPS esté activado.';
+  }
+  if (err.code === err.TIMEOUT){
+    return 'Tardó demasiado en encontrar tu ubicación. Probá de nuevo en un lugar más despejado (a cielo abierto).';
+  }
+  return 'No pude acceder a la ubicación. Revisá los permisos del navegador.';
+}
+
 function startWalk(){
   if (!navigator.geolocation){
     alert('Este navegador no tiene acceso a GPS/ubicación.');
@@ -495,6 +657,7 @@ function startWalk(){
   walkStartTime = Date.now();
   walkTracking = true;
   if (walkPolyline) walkPolyline.setLatLngs([]);
+  requestWakeLock();
 
   walkWatchId = navigator.geolocation.watchPosition((pos) => {
     const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, t: Date.now() };
@@ -511,7 +674,16 @@ function startWalk(){
     updateWalkStatsUI();
   }, (err) => {
     console.error(err);
-    alert('No pude acceder a la ubicación. Revisá los permisos del navegador.');
+    alert(geolocationErrorMessage(err));
+    if (walkPath.length === 0){
+      // Nunca llegó a trackear ni un punto: cancelamos, no dejamos el botón "Detener" colgado.
+      if (walkWatchId !== null) navigator.geolocation.clearWatch(walkWatchId);
+      if (walkTimerInterval) clearInterval(walkTimerInterval);
+      walkTracking = false;
+      walkWatchId = null;
+      releaseWakeLock();
+      renderWalkControls();
+    }
   }, { enableHighAccuracy:true, maximumAge:2000, timeout:10000 });
 
   walkTimerInterval = setInterval(updateWalkStatsUI, 1000);
@@ -523,6 +695,7 @@ async function stopWalk(){
   if (walkTimerInterval) clearInterval(walkTimerInterval);
   walkTracking = false;
   walkWatchId = null;
+  await releaseWakeLock();
 
   const { distKm, elapsed, steps } = updateWalkStatsUI();
   if (parseFloat(distKm) > 0.01){
@@ -822,6 +995,60 @@ function burstConfetti(x, y){
     document.body.appendChild(c);
     setTimeout(() => c.remove(), 1000);
   }
+}
+
+// ---- Exportar / importar datos (respaldo manual, todo vive en localStorage) ----
+function exportData(){
+  const payload = {
+    app: 'rutina-veronica',
+    exportedAt: new Date().toISOString(),
+    checklist: localStorage.getItem(CHECK_STORAGE_KEY),
+    walks: localStorage.getItem(STORAGE_KEY),
+    library: localStorage.getItem(LIB_STORAGE_KEY),
+    birthdays: localStorage.getItem(BIRTHDAYS_STORAGE_KEY),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rutina-veronica-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function importData(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const payload = JSON.parse(reader.result);
+      if (payload.app !== 'rutina-veronica') throw new Error('formato desconocido');
+      if (payload.checklist) localStorage.setItem(CHECK_STORAGE_KEY, payload.checklist);
+      if (payload.walks) localStorage.setItem(STORAGE_KEY, payload.walks);
+      if (payload.library) localStorage.setItem(LIB_STORAGE_KEY, payload.library);
+      if (payload.birthdays) localStorage.setItem(BIRTHDAYS_STORAGE_KEY, payload.birthdays);
+      alert('Datos importados correctamente. La página se va a recargar.');
+      location.reload();
+    }catch(e){
+      console.error('No se pudo importar el archivo', e);
+      alert('No se pudo leer el archivo. ¿Es un backup válido de esta app?');
+    }
+  };
+  reader.readAsText(file);
+}
+
+const exportBtn = document.getElementById('exportBtn');
+const importBtn = document.getElementById('importBtn');
+const importFile = document.getElementById('importFile');
+if (exportBtn) exportBtn.onclick = exportData;
+if (importBtn && importFile){
+  importBtn.onclick = () => importFile.click();
+  importFile.onchange = (ev) => {
+    const file = ev.target.files[0];
+    if (file) importData(file);
+    ev.target.value = '';
+  };
 }
 
 // ---- PWA: registrar service worker (instalable + funciona offline) ----

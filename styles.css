@@ -348,7 +348,66 @@ h1 span{
 .bday-item.today{ box-shadow:0 0 0 2px var(--orange); animation: glowPulse 1.6s ease-in-out infinite; }
 @keyframes glowPulse{ 0%,100%{box-shadow:0 0 0 2px rgba(255,122,61,0.4);} 50%{box-shadow:0 0 0 2px rgba(255,122,61,0.9);} }
 
+.bday-actions{ display:flex; gap:4px; flex:0 0 auto; }
+.bday-edit, .bday-del{
+  width:28px; height:28px; border-radius:9px; border:none; cursor:pointer; font-size:13px;
+}
+.bday-edit{ background:#F2E7FF; color:var(--violet-deep); }
+.bday-del{ background:#FFE9F1; color:var(--pink-deep); }
+.bday-edit:focus-visible, .bday-del:focus-visible{ outline:2.5px solid var(--violet-deep); outline-offset:2px; }
+
+.bday-form{
+  background:var(--card);
+  border-radius:18px;
+  padding:14px;
+  margin-bottom:14px;
+  box-shadow:0 4px 14px -10px rgba(74,59,71,0.2);
+}
+.bday-form label{
+  display:block; font-size:11.5px; font-weight:800; color:var(--text-soft); margin-bottom:4px;
+}
+.bday-form input, .bday-form select{
+  width:100%;
+  font-family:'Nunito', sans-serif;
+  font-size:14px; font-weight:700;
+  padding:10px 12px; border-radius:12px;
+  border:2px solid #EEE5FA;
+  margin-bottom:8px;
+  color:var(--ink);
+  background:#FBF8FF;
+}
+.bday-form input:focus, .bday-form select:focus{ outline:none; border-color:var(--violet); }
+.bday-form-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.bday-add-btn{
+  width:100%;
+  font-family:'Baloo 2', sans-serif;
+  font-weight:800; font-size:14.5px;
+  padding:12px; border:none; border-radius:12px;
+  color:#fff; cursor:pointer;
+  background:linear-gradient(120deg, var(--violet), var(--pink));
+}
+.bday-add-btn:active{ transform:scale(0.98); }
+.bday-add-btn:focus-visible{ outline:2.5px solid var(--ink); outline-offset:2px; }
+.bday-cancel-btn{
+  width:100%;
+  font-family:'Nunito', sans-serif;
+  font-weight:700; font-size:13px;
+  padding:8px; margin-top:6px;
+  border:none; border-radius:12px;
+  background:transparent; color:var(--text-soft); cursor:pointer;
+  text-decoration:underline;
+}
+
 footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-soft); font-weight:600; }
+.backup-actions{ display:flex; gap:8px; justify-content:center; margin-top:14px; flex-wrap:wrap; }
+.backup-btn{
+  font-family:'Nunito', sans-serif;
+  font-size:11.5px; font-weight:700;
+  padding:8px 12px; border-radius:12px; border:1.5px solid #EEDDD0;
+  background:var(--card); color:var(--text-soft); cursor:pointer;
+}
+.backup-btn:hover{ color:var(--orange-deep); border-color:var(--orange); }
+.backup-btn:focus-visible{ outline:2.5px solid var(--orange-deep); outline-offset:2px; }
 
 /* Caminata */
 .tab.walktab{ background:#DFFAF4; color:var(--teal-deep); }

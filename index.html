@@ -110,7 +110,14 @@
   <div class="tabs" id="tabs" role="tablist" aria-label="Días de la semana y secciones"></div>
   <div id="dayContent" role="tabpanel" aria-live="polite"></div>
 
-  <footer>Tocá o presioná Enter en cada casillero para marcarlo como hecho 🎧<br>¡A puro ritmo toda la semana!</footer>
+  <footer>
+    <p>Tocá o presioná Enter en cada casillero para marcarlo como hecho 🎧<br>¡A puro ritmo toda la semana!</p>
+    <div class="backup-actions">
+      <button type="button" id="exportBtn" class="backup-btn">⬇️ Exportar datos</button>
+      <button type="button" id="importBtn" class="backup-btn">⬆️ Importar datos</button>
+      <input type="file" id="importFile" accept="application/json" hidden>
+    </div>
+  </footer>
 </div>
 
 <script src="app.js" defer></script>
