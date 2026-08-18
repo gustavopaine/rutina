@@ -10,13 +10,13 @@ Verónica, con tema de cuarteto (Euge Quevedo). Incluye:
 
 ## Cómo abrirla
 
-Doble clic en `index.html`. Funciona así, sin servidor.
+Ya está publicada en **https://gustavopaine.github.io/rutina/** — desde ahí
+se puede instalar de verdad en el celular (Chrome → "Agregar a pantalla de
+inicio"), con offline y Caminata por GPS funcionando.
 
-**Importante:** el "modo offline / instalable como app" (service worker) **no
-funciona abriendo el archivo directamente** (`file://`) — el navegador lo
-bloquea por seguridad. Para que esa parte funcione hace falta servir el sitio
-por `http://` o `https://` (por ejemplo, un hosting como GitHub Pages). Hasta
-que eso no pase, la app anda igual, solo que sin instalación ni caché offline.
+También se puede abrir localmente con doble clic en `index.html` (sin
+servidor), pero así el "modo offline / instalable como app" (service worker)
+**no funciona** — el navegador lo bloquea por seguridad bajo `file://`.
 
 Para probar el service worker en tu PC sin publicar nada, podés levantar un
 servidor local desde esta carpeta con Node (sin dependencias):
@@ -199,7 +199,10 @@ El proyecto avanza por niveles definidos junto con el usuario:
   siga siendo rápido, y que el uso normal no genere un crecimiento de
   memoria fuera de lo razonable.
 
-Publicar en un hosting público (GitHub Pages u otro) queda para una etapa
-posterior, a criterio del usuario — el sitio contiene datos personales reales
-(nombres y fechas de nacimiento de familiares), así que esa decisión se toma
-explícitamente cuando llegue el momento.
+- **Nivel 10** — publicada en GitHub Pages:
+  https://gustavopaine.github.io/rutina/ — verificado de punta a punta
+  (manifest, service worker activo por HTTPS real, checklist, sin errores
+  de consola).
+- **Nivel 11** — bloqueada la indexación en buscadores (`robots.txt` +
+  meta `noindex`), ahora que el sitio contiene datos personales reales
+  (nombres y fechas de cumpleaños) accesibles públicamente de verdad.
