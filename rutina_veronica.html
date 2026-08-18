@@ -621,6 +621,11 @@
 </div>
 
 <script>
+/* =========================================================================
+   DATOS EDITABLES — rutina semanal, cumpleaños y accesos de biblioteca.
+   Para cambiar un horario, agregar un cumpleaños o un link, editá acá abajo.
+   No hace falta tocar nada debajo del bloque "LÓGICA" más adelante.
+   ========================================================================= */
 const DAY_COLORS = {
   lunes:    ['#FF7A3D', '#E8551C'],
   martes:   ['#3ADEC0', '#1FB39A'],
@@ -780,9 +785,35 @@ const DATA = {
 };
 
 const ORDER = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
-const state = {};
-ORDER.forEach(k => state[k] = new Set());
-let current = ORDER[0];
+const CHECK_STORAGE_KEY = 'veronica-checklist-state';
+
+function loadCheckState(){
+  const state = {};
+  ORDER.forEach(k => state[k] = new Set());
+  try{
+    const raw = localStorage.getItem(CHECK_STORAGE_KEY);
+    if (raw){
+      const parsed = JSON.parse(raw);
+      ORDER.forEach(k => { if (Array.isArray(parsed[k])) state[k] = new Set(parsed[k]); });
+    }
+  }catch(e){ console.error('No se pudo leer el estado del checklist', e); }
+  return state;
+}
+function saveCheckState(){
+  try{
+    const plain = {};
+    ORDER.forEach(k => plain[k] = [...state[k]]);
+    localStorage.setItem(CHECK_STORAGE_KEY, JSON.stringify(plain));
+  }catch(e){ console.error('No se pudo guardar el estado del checklist', e); }
+}
+
+const state = loadCheckState();
+
+function todayKey(){
+  const jsDay = new Date().getDay(); // 0=domingo..6=sabado
+  return ORDER[(jsDay + 6) % 7];
+}
+let current = todayKey();
 
 // ---- Cumpleaños (mismos datos que la rutina de Lara) ----
 const CAT_COLOR = {
@@ -863,6 +894,11 @@ const BIRTHDAYS = [
   {name:"Yobani", day:22, month:3, cat:"Primo/a"},
 ];
 const MONTH_NAMES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+/* ========================== FIN DE DATOS EDITABLES =====================
+   (La lista de accesos rápidos QUICK_LINKS de la Biblioteca también es
+   editable y está más abajo, cerca de la sección "Biblioteca".)
+   LÓGICA a partir de acá — no hace falta tocarla para editar contenido.
+   ========================================================================= */
 
 function daysUntilInfo(month, day){
   const today = new Date(); today.setHours(0,0,0,0);
@@ -992,21 +1028,15 @@ function formatDuration(ms){
 }
 
 async function loadWalkHistory(){
-  if (window.storage){
-    try{
-      const res = await window.storage.get(STORAGE_KEY, false);
-      walkHistory = res && res.value ? JSON.parse(res.value) : [];
-    }catch(e){ walkHistory = []; }
-  } else {
-    walkHistory = walkHistory || [];
-  }
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    walkHistory = raw ? JSON.parse(raw) : [];
+  }catch(e){ walkHistory = []; }
 }
 
 async function saveWalkHistory(){
-  if (window.storage){
-    try{ await window.storage.set(STORAGE_KEY, JSON.stringify(walkHistory), false); }
-    catch(e){ console.error('No se pudo guardar el historial', e); }
-  }
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(walkHistory)); }
+  catch(e){ console.error('No se pudo guardar el historial', e); }
 }
 
 function renderWalkHistory(){
@@ -1185,18 +1215,14 @@ const LIB_TYPE_ICON = { musica:"🎵", audio:"🎙️", video:"📺" };
 const LIB_TYPE_LABEL = { musica:"Música", audio:"Audio / podcast", video:"Video" };
 
 async function loadLibrary(){
-  if (window.storage){
-    try{
-      const res = await window.storage.get(LIB_STORAGE_KEY, false);
-      libraryItems = res && res.value ? JSON.parse(res.value) : [];
-    }catch(e){ libraryItems = []; }
-  }
+  try{
+    const raw = localStorage.getItem(LIB_STORAGE_KEY);
+    libraryItems = raw ? JSON.parse(raw) : [];
+  }catch(e){ libraryItems = []; }
 }
 async function saveLibrary(){
-  if (window.storage){
-    try{ await window.storage.set(LIB_STORAGE_KEY, JSON.stringify(libraryItems), false); }
-    catch(e){ console.error('No se pudo guardar la biblioteca', e); }
-  }
+  try{ localStorage.setItem(LIB_STORAGE_KEY, JSON.stringify(libraryItems)); }
+  catch(e){ console.error('No se pudo guardar la biblioteca', e); }
 }
 
 function renderLibraryItems(){
@@ -1325,6 +1351,7 @@ function renderDay(){
       row.onclick = (ev) => {
         if (state[current].has(key)) { state[current].delete(key); }
         else { state[current].add(key); burstConfetti(ev.clientX, ev.clientY); }
+        saveCheckState();
         renderDay();
       };
       el.appendChild(row);
