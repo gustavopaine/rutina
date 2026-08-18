@@ -28,6 +28,29 @@ node scripts/dev-server.js
 y abrir `http://localhost:5173/index.html`. (También funciona
 `python -m http.server 8000` si preferís Python.)
 
+### Particularidades de instalarla en iPhone (Safari/iOS)
+
+Cuando llegue el momento de instalar esto en un iPhone, tené en cuenta que
+iOS se comporta distinto a Android/Chrome:
+
+- **No hay instalación automática.** Safari no ofrece un cartel de "instalar
+  la app" solo. Hay que abrir el sitio en Safari → tocar Compartir → "Agregar
+  a la pantalla de inicio". El `manifest.json` (con `display: "standalone"`)
+  ya está listo para eso, no hace falta ningún meta tag extra.
+- **Wake Lock (pantalla encendida durante la caminata):** funciona en apps
+  agregadas a la pantalla de inicio recién desde iOS 18.4 (antes tenía un bug
+  conocido de Apple que lo rompía justo en ese modo). El código ya contempla
+  que la API no exista (`if (!('wakeLock' in navigator)) return;`), así que
+  en iOS viejo simplemente no se activa — no rompe nada, solo no ayuda a
+  mantener la pantalla prendida.
+- **El offline no es tan persistente como en Android.** Safari guarda bastante
+  espacio por sitio, pero si la app no se abre durante varias semanas, iOS
+  puede limpiar el caché del service worker y los datos guardados sin avisar.
+  Por eso conviene usar de vez en cuando **⬇️ Exportar datos** (pie de página)
+  como respaldo real, no depender solo de que iOS los mantenga para siempre.
+
+Sources: [MagicBell — PWA iOS Limitations and Safari Support (2026)](https://www.magicbell.com/blog/pwa-ios-limitations-safari-support-complete-guide), [Progressier — Screen Wake Lock PWA Demo](https://progressier.com/pwa-capabilities/screen-wake-lock), [OJapp — What PWAs Can and Cannot Do on iOS in 2026](https://tips.ojapp.app/en/pwa-ios-2026-complete-guide/)
+
 ## Estructura de archivos
 
 ```
@@ -161,6 +184,20 @@ El proyecto avanza por niveles definidos junto con el usuario:
   pantalla en blanco). Primeros tests de UI de punta a punta con
   Playwright (`tests/ui/`), cubriendo checklist, rutina, cumpleaños,
   biblioteca y la navegación por teclado nueva.
+- **Nivel 9** — se terminó de cerrar el contraste WCAG que había quedado
+  pendiente (pestaña activa y banners grandes): en vez de oscurecer la
+  paleta de colores por día, se agregó una cortina oscura semitransparente
+  detrás del texto, así el color de cada día no cambia en el resto de la
+  app. De paso se encontró y arregló un bug real de layout: el texto de
+  los banners de Caminata y Biblioteca usaba la misma clase CSS (`.note`)
+  que las notitas musicales decorativas de fondo, lo que lo sacaba del
+  flujo normal y lo hacía flotar encima del título (bug que ya estaba
+  desde Nivel 2, nunca detectado visualmente hasta ahora). Se documentaron
+  las particularidades de instalar la app en iPhone (Safari/iOS). Se
+  agregaron tests de rendimiento: que `burstConfetti()` no deje elementos
+  colgados en el DOM, que guardar una caminata larga (miles de puntos)
+  siga siendo rápido, y que el uso normal no genere un crecimiento de
+  memoria fuera de lo razonable.
 
 Publicar en un hosting público (GitHub Pages u otro) queda para una etapa
 posterior, a criterio del usuario — el sitio contiene datos personales reales

@@ -202,12 +202,10 @@ h1 span{
   color:#fff;
   box-shadow:var(--shadow);
   transform:translateY(-3px) scale(1.04);
-  /* Mejora parcial de legibilidad: el fondo usa el color propio de cada
-     día, que en algunos casos no llega a 4.5:1 con texto blanco. Tocar
-     esos colores afectaría la identidad de cada día en toda la app
-     (banner, barra de progreso, etc.), así que quedó fuera del arreglo
-     de "solo lo grave" — esto ayuda pero no lo garantiza en todos los días. */
-  text-shadow:0 1px 3px rgba(0,0,0,0.45);
+  /* El fondo (ver renderTabs en app.js) lleva una cortina oscura semi-
+     transparente detrás del degradé propio del día, así el texto blanco
+     llega a 4.5:1 sin cambiar el color en el resto de la app. */
+  text-shadow:0 1px 3px rgba(0,0,0,0.3);
 }
 .tab.bdaytab{ background:#F2E7FF; color:var(--violet-deep); }
 
@@ -480,11 +478,17 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
 .walk-banner{
   border-radius:22px; padding:16px 20px; color:#fff;
   box-shadow:var(--shadow); margin-bottom:14px;
-  background:linear-gradient(120deg, var(--teal), var(--teal-deep), var(--teal));
+  /* Cortina oscura semitransparente (ver .tab.active en app.js) para que
+     el texto blanco llegue a 4.5:1 sin cambiar --teal en el resto de la app. */
+  background:linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), linear-gradient(120deg, var(--teal), var(--teal-deep), var(--teal));
   background-size:300% 300%; animation: shimmer 6s ease infinite;
 }
 .walk-banner .name{ font-family:'Baloo 2', sans-serif; font-weight:800; font-size:20px; }
-.walk-banner .note{ font-size:12.5px; font-weight:600; opacity:0.95; margin-top:4px; line-height:1.4; }
+/* "banner-note" (no "note" a secas): esa clase ya la usan las notitas
+   musicales decorativas de fondo (position:fixed, animación floatUp) —
+   reusarla acá hacía que este texto se saliera del flujo normal y
+   quedara flotando encima del título. */
+.walk-banner .banner-note{ font-size:12.5px; font-weight:600; opacity:0.95; margin-top:4px; line-height:1.4; }
 
 .walk-recover-banner{
   background:#FFF3E4;
@@ -581,11 +585,13 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
 .lib-banner{
   border-radius:22px; padding:16px 20px; color:#fff;
   box-shadow:var(--shadow); margin-bottom:16px;
-  background:linear-gradient(120deg, var(--violet), var(--violet-deep), var(--violet));
+  /* Cortina oscura semitransparente (ver .tab.active en app.js) para que
+     el texto blanco llegue a 4.5:1 sin cambiar --violet en el resto de la app. */
+  background:linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), linear-gradient(120deg, var(--violet), var(--violet-deep), var(--violet));
   background-size:300% 300%; animation: shimmer 6s ease infinite;
 }
 .lib-banner .name{ font-family:'Baloo 2', sans-serif; font-weight:800; font-size:20px; }
-.lib-banner .note{ font-size:12.5px; font-weight:600; opacity:0.95; margin-top:4px; line-height:1.4; }
+.lib-banner .banner-note{ font-size:12.5px; font-weight:600; opacity:0.95; margin-top:4px; line-height:1.4; }
 
 .lib-section-title{
   font-family:'Baloo 2', sans-serif; font-weight:800; font-size:14px;

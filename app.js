@@ -473,7 +473,10 @@ function renderTabs(){
       btn.textContent = d.label.slice(0,3);
     }
     if (key===current){
-      btn.style.background = `linear-gradient(135deg, ${c1}, ${c2})`;
+      // Cortina oscura semitransparente para que el texto blanco llegue al
+      // contraste mínimo (WCAG 4.5:1) sin cambiar el color propio del día
+      // en el resto de la app (banner, barra de progreso, bordes, etc.).
+      btn.style.background = `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), linear-gradient(135deg, ${c1}, ${c2})`;
       btn.style.color = '#fff';
     }
     btn.onclick = () => {
@@ -518,7 +521,8 @@ async function renderBirthdays(){
     const next = sorted[0];
     const hero = document.createElement('div');
     hero.className = 'bday-hero';
-    hero.style.background = `linear-gradient(120deg, #8B6BFF, #FF4FA0, #8B6BFF)`;
+    // Misma cortina oscura que en las pestañas/banner del día (ver ahí el porqué).
+    hero.style.background = `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), linear-gradient(120deg, #8B6BFF, #FF4FA0, #8B6BFF)`;
     const whenTxt = next.diff === 0 ? '¡Es hoy! 🎉' : (next.diff === 1 ? 'Es mañana' : `${MONTH_NAMES[next.targetMonth]} ${next.day}`);
     const countdownTxt = next.diff === 0 ? '¡No te olvides de saludar!' : (next.diff === 1 ? 'Faltan 1 día' : `Faltan ${next.diff} días`);
     hero.innerHTML = `
@@ -850,7 +854,7 @@ async function renderWalk(){
   wrap.innerHTML = `
     <div class="walk-banner">
       <div class="name">📍 Caminata en vivo</div>
-      <div class="note">Usa el GPS del celular y un mapa gratuito (OpenStreetMap). Necesitás dar permiso de ubicación y mantener esta pantalla abierta mientras caminás — no funciona en segundo plano.</div>
+      <div class="banner-note">Usa el GPS del celular y un mapa gratuito (OpenStreetMap). Necesitás dar permiso de ubicación y mantener esta pantalla abierta mientras caminás — no funciona en segundo plano.</div>
     </div>
     <div id="walkRecoverWrap"></div>
     <div id="walkMap"></div>
@@ -999,7 +1003,7 @@ async function renderLibrary(){
   wrap.innerHTML = `
     <div class="lib-banner">
       <div class="name">🎵 Biblioteca para el camino</div>
-      <div class="note">Accesos directos a cuarteto y espacio para guardar tus propios temas, audios o videos. Se abren en YouTube, Spotify o la app que tengas instalada.</div>
+      <div class="banner-note">Accesos directos a cuarteto y espacio para guardar tus propios temas, audios o videos. Se abren en YouTube, Spotify o la app que tengas instalada.</div>
     </div>
 
     <div class="lib-section-title">Accesos rápidos</div>
@@ -1063,7 +1067,8 @@ function renderDay(){
 
   const banner = document.createElement('div');
   banner.className = 'day-banner';
-  banner.style.background = `linear-gradient(120deg, ${c1}, ${c2}, ${c1})`;
+  // Misma cortina oscura que en las pestañas (ver ahí el porqué).
+  banner.style.background = `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), linear-gradient(120deg, ${c1}, ${c2}, ${c1})`;
   banner.innerHTML = `<div class="name">${day.label}</div><div class="tag">${day.tag}</div>`;
   wrap.appendChild(banner);
 
