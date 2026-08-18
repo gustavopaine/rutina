@@ -1,5 +1,7 @@
 # Rutina de Verónica
 
+[![Tests](https://github.com/gustavopaine/rutina/actions/workflows/test.yml/badge.svg)](https://github.com/gustavopaine/rutina/actions/workflows/test.yml)
+
 App de una sola sección por pestaña (sin backend) para la rutina semanal de
 Verónica, con tema de cuarteto (Euge Quevedo). Incluye:
 
@@ -206,3 +208,8 @@ El proyecto avanza por niveles definidos junto con el usuario:
 - **Nivel 11** — bloqueada la indexación en buscadores (`robots.txt` +
   meta `noindex`), ahora que el sitio contiene datos personales reales
   (nombres y fechas de cumpleaños) accesibles públicamente de verdad.
+- **Nivel 12** — CI con GitHub Actions: `npm test` corre automáticamente
+  en cada push a `main` y en cada pull request, para detectar
+  regresiones en la lógica pura antes de que lleguen a la rama
+  publicada. Mismo alcance que el hook de pre-commit (rápido, sin los
+  tests de UI).
