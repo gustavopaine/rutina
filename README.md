@@ -68,6 +68,14 @@ npm test
 
 No hace falta instalar nada más (no usan ninguna dependencia externa).
 
+Hay un hook de pre-commit (versionado en `.githooks/`, no en `.git/hooks/`
+que no viaja con el repo) que corre `npm test` antes de cada commit y lo
+cancela si algo falla. Se activa una sola vez por clon con:
+
+```
+git config core.hooksPath .githooks
+```
+
 ## Dónde vive cada dato
 
 Todo se guarda en el `localStorage` del navegador donde se usa la app (no hay
@@ -96,6 +104,12 @@ El proyecto avanza por niveles definidos junto con el usuario:
   backup (para no perder datos por error), ítems de Biblioteca editables
   (antes solo se podían agregar/borrar), y una primera tanda de tests
   automáticos (`logic.js` + `tests/`, corren con `npm test`).
+- **Nivel 5** — se corrigió un bug real: el checklist diario se guardaba por
+  nombre de día de la semana, así que lo tildado un lunes seguía apareciendo
+  tildado todos los lunes siguientes para siempre; ahora cada día calendario
+  nuevo arranca en blanco. Se agrandaron los botones táctiles (✏️/✕) tras
+  verificar el layout en un ancho de pantalla de celular real (360px), y se
+  agregó un hook de pre-commit que corre los tests antes de cada commit.
 
 Publicar en un hosting público (GitHub Pages u otro) queda para una etapa
 posterior, a criterio del usuario — el sitio contiene datos personales reales

@@ -1,0 +1,15 @@
+#!/bin/sh
+# Corre los tests antes de cada commit. Si fallan, el commit se cancela.
+# Se activa una vez por clon con: git config core.hooksPath .githooks
+
+npm test
+status=$?
+
+if [ $status -ne 0 ]; then
+  echo ""
+  echo "Los tests fallaron (npm test). Commit cancelado."
+  echo "Arreglalos, o si es intencional, usa 'git commit --no-verify' para saltear este chequeo."
+  exit 1
+fi
+
+exit 0

@@ -6,6 +6,7 @@ const {
   daysUntilInfo,
   sortBirthdaysByNextOccurrence,
   todayKey,
+  isoDate,
   geolocationErrorMessage,
 } = require('../logic.js');
 
@@ -64,6 +65,11 @@ test('todayKey: mapea getDay() de JS al orden de la semana de la app (arranca lu
   const order = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
   assert.equal(todayKey(new Date(2026, 7, 17), order), 'lunes');   // 17 ago 2026 es lunes
   assert.equal(todayKey(new Date(2026, 7, 23), order), 'domingo'); // 23 ago 2026 es domingo
+});
+
+test('isoDate: formatea como YYYY-MM-DD con ceros a la izquierda', () => {
+  assert.equal(isoDate(new Date(2026, 7, 17)), '2026-08-17');
+  assert.equal(isoDate(new Date(2026, 0, 5)), '2026-01-05');
 });
 
 test('geolocationErrorMessage: distingue los códigos de error conocidos', () => {

@@ -280,7 +280,7 @@ h1 span{
   border:0;
 }
 .checkbox{
-  width:23px; height:23px; border-radius:8px;
+  width:26px; height:26px; border-radius:8px;
   border:2.5px solid var(--orange);
   flex:0 0 auto;
   display:flex; align-items:center; justify-content:center;
@@ -300,12 +300,12 @@ h1 span{
 
 .item-edit-btn, .item-del-btn{
   flex:0 0 auto;
-  width:26px; height:26px;
-  border-radius:9px;
+  width:32px; height:32px;
+  border-radius:10px;
   border:none;
   cursor:pointer;
-  font-size:12px;
-  opacity:0.55;
+  font-size:13px;
+  opacity:0.65;
   transition:opacity .15s ease;
 }
 .item-edit-btn{ background:#F2E7FF; color:var(--violet-deep); }
@@ -398,7 +398,7 @@ h1 span{
 
 .bday-actions{ display:flex; gap:4px; flex:0 0 auto; }
 .bday-edit, .bday-del{
-  width:28px; height:28px; border-radius:9px; border:none; cursor:pointer; font-size:13px;
+  width:34px; height:34px; border-radius:10px; border:none; cursor:pointer; font-size:14px;
 }
 .bday-edit{ background:#F2E7FF; color:var(--violet-deep); }
 .bday-del{ background:#FFE9F1; color:var(--pink-deep); }
@@ -636,7 +636,7 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
 .lib-item .lib-item-title{ font-size:13.5px; font-weight:800; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .lib-item .lib-item-type{ font-size:11px; color:var(--text-soft); font-weight:700; }
 .lib-item .lib-edit, .lib-item .lib-del{
-  flex:0 0 auto; width:30px; height:30px; border-radius:10px; border:none;
+  flex:0 0 auto; width:34px; height:34px; border-radius:10px; border:none;
   font-weight:800; cursor:pointer; font-size:13px;
 }
 .lib-item .lib-edit{ background:#F2E7FF; color:var(--violet-deep); }

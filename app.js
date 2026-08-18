@@ -162,8 +162,9 @@ const DEFAULT_DATA = {
 };
 
 const ORDER = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
-const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, geolocationErrorMessage } = window.RutinaLogic;
+const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage } = window.RutinaLogic;
 const CHECK_STORAGE_KEY = 'veronica-checklist-state';
+const CHECK_LAST_ACTIVE_KEY = 'veronica-checklist-last-active';
 
 function loadCheckState(){
   const state = {};
@@ -175,6 +176,25 @@ function loadCheckState(){
       ORDER.forEach(k => { if (Array.isArray(parsed[k])) state[k] = new Set(parsed[k]); });
     }
   }catch(e){ console.error('No se pudo leer el estado del checklist', e); }
+
+  // La rutina es diaria: si cambió el día calendario desde la última vez
+  // que se abrió la app, el checklist de HOY tiene que arrancar en blanco
+  // (si no, quedaría tildado para siempre cada vez que vuelva a ser ese
+  // mismo día de la semana). Los demás días quedan como estaban, para
+  // poder mirar hacia atrás qué se hizo un día anterior.
+  try{
+    const today = isoDate(new Date());
+    const lastActive = localStorage.getItem(CHECK_LAST_ACTIVE_KEY);
+    if (lastActive !== today){
+      const todaysKey = todayKey(new Date(), ORDER);
+      state[todaysKey] = new Set();
+      const plain = {};
+      ORDER.forEach(k => plain[k] = [...state[k]]);
+      localStorage.setItem(CHECK_STORAGE_KEY, JSON.stringify(plain));
+      localStorage.setItem(CHECK_LAST_ACTIVE_KEY, today);
+    }
+  }catch(e){ console.error('No se pudo verificar la fecha del checklist', e); }
+
   return state;
 }
 function saveCheckState(){
