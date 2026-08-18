@@ -218,3 +218,11 @@ El proyecto avanza por niveles definidos junto con el usuario:
   este entorno de desarrollo local es lento pero en las máquinas de
   GitHub Actions corre rápido y confiable. Si algo falla, sube el
   reporte HTML de Playwright como artefacto del workflow.
+- **Nivel 14** — auditoría de criterios PWA sobre el sitio ya
+  publicado (Lighthouse no llegó a correr en este entorno por un
+  desfasaje de versión de Node, así que se verificó a mano cada
+  criterio con Playwright): HTTPS ✓, manifest.json válido con nombre,
+  `start_url` y `display: standalone` ✓, los 3 íconos declarados
+  (192, 512, maskable) cargan ✓, viewport y theme-color ✓,
+  apple-touch-icon ✓, service worker activo de verdad ✓. Cumple todos
+  los criterios estándar de "instalable".
