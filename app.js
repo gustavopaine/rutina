@@ -163,6 +163,22 @@ const DEFAULT_DATA = {
 
 const ORDER = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
 const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage } = window.RutinaLogic;
+
+// ---- Aviso visible si falla un guardado (antes quedaba solo en la consola) ----
+let saveErrorTimeout = null;
+function showSaveError(message){
+  let banner = document.getElementById('saveErrorBanner');
+  if (!banner){
+    banner = document.createElement('div');
+    banner.id = 'saveErrorBanner';
+    banner.setAttribute('role', 'alert');
+    document.body.appendChild(banner);
+  }
+  banner.textContent = '⚠️ ' + message;
+  banner.classList.add('visible');
+  clearTimeout(saveErrorTimeout);
+  saveErrorTimeout = setTimeout(() => banner.classList.remove('visible'), 6000);
+}
 const CHECK_STORAGE_KEY = 'veronica-checklist-state';
 const CHECK_LAST_ACTIVE_KEY = 'veronica-checklist-last-active';
 
@@ -202,7 +218,7 @@ function saveCheckState(){
     const plain = {};
     ORDER.forEach(k => plain[k] = [...state[k]]);
     localStorage.setItem(CHECK_STORAGE_KEY, JSON.stringify(plain));
-  }catch(e){ console.error('No se pudo guardar el estado del checklist', e); }
+  }catch(e){ console.error('No se pudo guardar el estado del checklist', e); showSaveError('No se pudo guardar el checklist. Revisá el espacio disponible o si estás en modo privado.'); }
 }
 
 const state = loadCheckState();
@@ -240,7 +256,7 @@ function loadRoutine(){
 }
 function saveRoutine(){
   try{ localStorage.setItem(ROUTINE_STORAGE_KEY, JSON.stringify(routine)); }
-  catch(e){ console.error('No se pudo guardar la rutina', e); }
+  catch(e){ console.error('No se pudo guardar la rutina', e); showSaveError('No se pudo guardar el cambio en la rutina.'); }
 }
 
 const routine = loadRoutine();
@@ -374,7 +390,7 @@ async function loadBirthdays(){
 }
 async function saveBirthdays(){
   try{ localStorage.setItem(BIRTHDAYS_STORAGE_KEY, JSON.stringify(birthdays)); }
-  catch(e){ console.error('No se pudo guardar la lista de cumpleaños', e); }
+  catch(e){ console.error('No se pudo guardar la lista de cumpleaños', e); showSaveError('No se pudo guardar el cumpleaños.'); }
 }
 
 async function submitBirthdayForm(){
@@ -582,6 +598,7 @@ const STRIDE_M = 0.75; // largo de paso promedio para estimar pasos
 const VEHICLE_SPEED_KMH = 8; // por encima de esto, se asume vehículo
 const DEFAULT_CENTER = [-40.8135, -62.9967]; // Viedma, Río Negro (punto de partida por defecto)
 const STORAGE_KEY = 'veronica-walks-history';
+const WALK_INPROGRESS_KEY = 'veronica-walk-inprogress';
 
 let walkMap = null, walkPolyline = null, walkMarker = null;
 let walkWatchId = null, walkTracking = false;
@@ -617,7 +634,35 @@ async function loadWalkHistory(){
 
 async function saveWalkHistory(){
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(walkHistory)); }
-  catch(e){ console.error('No se pudo guardar el historial', e); }
+  catch(e){ console.error('No se pudo guardar el historial', e); showSaveError('No se pudo guardar el historial de caminatas.'); }
+}
+
+// ---- Recuperar una caminata si se cierra la app sin apretar "Detener" ----
+function saveInProgressWalk(){
+  try{
+    localStorage.setItem(WALK_INPROGRESS_KEY, JSON.stringify({
+      startTime: walkStartTime,
+      path: walkPath,
+      mode: walkCurrentMode,
+    }));
+  }catch(e){ console.error('No se pudo guardar el progreso de la caminata', e); }
+}
+function clearInProgressWalk(){
+  try{ localStorage.removeItem(WALK_INPROGRESS_KEY); }catch(e){ /* nada que hacer */ }
+}
+function loadInProgressWalk(){
+  try{
+    const raw = localStorage.getItem(WALK_INPROGRESS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function walkStatsFromPath(path, startTime){
+  const dist = path.reduce((sum, p, i) => i===0 ? 0 : sum + haversine(path[i-1], p), 0);
+  const distKm = (dist/1000).toFixed(2);
+  const lastT = path.length ? path[path.length-1].t : startTime;
+  const elapsed = startTime ? lastT - startTime : 0;
+  const steps = Math.round(dist / STRIDE_M);
+  return { distKm, elapsed, steps };
 }
 
 function renderWalkHistory(){
@@ -696,6 +741,7 @@ function startWalk(){
   walkTracking = true;
   if (walkPolyline) walkPolyline.setLatLngs([]);
   requestWakeLock();
+  saveInProgressWalk();
 
   walkWatchId = navigator.geolocation.watchPosition((pos) => {
     const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, t: Date.now() };
@@ -710,6 +756,7 @@ function startWalk(){
       }
     }
     updateWalkStatsUI();
+    saveInProgressWalk();
   }, (err) => {
     console.error(err);
     alert(geolocationErrorMessage(err));
@@ -720,6 +767,7 @@ function startWalk(){
       walkTracking = false;
       walkWatchId = null;
       releaseWakeLock();
+      clearInProgressWalk();
       renderWalkControls();
     }
   }, { enableHighAccuracy:true, maximumAge:2000, timeout:10000 });
@@ -734,6 +782,7 @@ async function stopWalk(){
   walkTracking = false;
   walkWatchId = null;
   await releaseWakeLock();
+  clearInProgressWalk();
 
   const { distKm, elapsed, steps } = updateWalkStatsUI();
   if (parseFloat(distKm) > 0.01){
@@ -771,6 +820,7 @@ async function renderWalk(){
       <div class="name">📍 Caminata en vivo</div>
       <div class="note">Usa el GPS del celular y un mapa gratuito (OpenStreetMap). Necesitás dar permiso de ubicación y mantener esta pantalla abierta mientras caminás — no funciona en segundo plano.</div>
     </div>
+    <div id="walkRecoverWrap"></div>
     <div id="walkMap"></div>
     <div class="walk-mode" id="walkModeBadge">🚶‍♀️ Esperando inicio…</div>
     <div class="walk-stats">
@@ -787,6 +837,44 @@ async function renderWalk(){
   renderWalkControls();
   await loadWalkHistory();
   renderWalkHistory();
+
+  if (!walkTracking){
+    const abandoned = loadInProgressWalk();
+    if (abandoned && Array.isArray(abandoned.path) && abandoned.path.length >= 2){
+      const stats = walkStatsFromPath(abandoned.path, abandoned.startTime);
+      if (parseFloat(stats.distKm) > 0.01){
+        const recoverWrap = document.getElementById('walkRecoverWrap');
+        recoverWrap.innerHTML = `
+          <div class="walk-recover-banner">
+            <div class="walk-recover-text">Se cortó una caminata sin guardar: ${stats.distKm} km · ${formatDuration(stats.elapsed)}. ¿Qué hacemos?</div>
+            <div class="walk-recover-actions">
+              <button type="button" id="walkRecoverSaveBtn">💾 Guardar en el historial</button>
+              <button type="button" id="walkRecoverDiscardBtn">🗑️ Descartar</button>
+            </div>
+          </div>
+        `;
+        document.getElementById('walkRecoverSaveBtn').onclick = async () => {
+          const session = {
+            dateLabel: new Date(abandoned.startTime).toLocaleDateString('es-AR', { weekday:'short', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }),
+            distanceKm: stats.distKm,
+            durationLabel: formatDuration(stats.elapsed),
+            steps: stats.steps.toLocaleString('es-AR'),
+            mode: abandoned.mode || 'walking',
+          };
+          walkHistory.push(session);
+          await saveWalkHistory();
+          clearInProgressWalk();
+          renderWalk();
+        };
+        document.getElementById('walkRecoverDiscardBtn').onclick = () => {
+          clearInProgressWalk();
+          renderWalk();
+        };
+      } else {
+        clearInProgressWalk();
+      }
+    }
+  }
 }
 
 // ---- Biblioteca de música/audios/videos para el camino ----
@@ -815,7 +903,7 @@ async function loadLibrary(){
 }
 async function saveLibrary(){
   try{ localStorage.setItem(LIB_STORAGE_KEY, JSON.stringify(libraryItems)); }
-  catch(e){ console.error('No se pudo guardar la biblioteca', e); }
+  catch(e){ console.error('No se pudo guardar la biblioteca', e); showSaveError('No se pudo guardar el cambio en la biblioteca.'); }
 }
 
 function renderLibraryItems(){

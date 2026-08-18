@@ -468,6 +468,25 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
 .walk-banner .name{ font-family:'Baloo 2', sans-serif; font-weight:800; font-size:20px; }
 .walk-banner .note{ font-size:12.5px; font-weight:600; opacity:0.95; margin-top:4px; line-height:1.4; }
 
+.walk-recover-banner{
+  background:#FFF3E4;
+  border:2px dashed var(--orange);
+  border-radius:16px;
+  padding:12px 14px;
+  margin-bottom:14px;
+}
+.walk-recover-text{ font-size:13px; font-weight:700; color:var(--ink); margin-bottom:10px; line-height:1.4; }
+.walk-recover-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+.walk-recover-actions button{
+  flex:1 1 auto;
+  font-family:'Baloo 2', sans-serif;
+  font-weight:800; font-size:13px;
+  padding:10px 12px; border:none; border-radius:12px; cursor:pointer;
+}
+#walkRecoverSaveBtn{ background:linear-gradient(120deg, var(--teal), var(--teal-deep)); color:#fff; }
+#walkRecoverDiscardBtn{ background:#fff; color:var(--text-soft); box-shadow:inset 0 0 0 1.5px #EEDDD0; }
+.walk-recover-actions button:focus-visible{ outline:2.5px solid var(--ink); outline-offset:2px; }
+
 #walkMap{
   width:100%; height:230px; border-radius:18px; margin-bottom:14px;
   box-shadow:0 6px 18px -10px rgba(0,0,0,0.25);
@@ -652,5 +671,25 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
     transition-duration:0.01ms !important;
   }
 }
+
+#saveErrorBanner{
+  position:fixed;
+  left:50%;
+  bottom:-80px;
+  transform:translateX(-50%);
+  max-width:calc(100% - 32px);
+  width:420px;
+  background:linear-gradient(120deg, var(--pink-deep), #C4266A);
+  color:#fff;
+  font-size:13px;
+  font-weight:700;
+  text-align:center;
+  padding:12px 18px;
+  border-radius:16px;
+  box-shadow:0 12px 26px -10px rgba(0,0,0,0.4);
+  z-index:1000;
+  transition:bottom .3s ease;
+}
+#saveErrorBanner.visible{ bottom:16px; }
 
 @media (max-width:380px){ h1{font-size:26px;} }

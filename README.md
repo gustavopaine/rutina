@@ -110,6 +110,15 @@ El proyecto avanza por niveles definidos junto con el usuario:
   nuevo arranca en blanco. Se agrandaron los botones táctiles (✏️/✕) tras
   verificar el layout en un ancho de pantalla de celular real (360px), y se
   agregó un hook de pre-commit que corre los tests antes de cada commit.
+- **Nivel 6** — se probó el modo offline de verdad (cortando la conexión con
+  el service worker activo, no solo viendo que se registre): la app carga y
+  el checklist funciona sin internet; solo lo que necesita red externa
+  (tipografías, mapa) se degrada, como estaba previsto. Si se cierra la app
+  a mitad de una caminata sin apretar "Detener", ahora se puede recuperar
+  (guardar en el historial o descartar) la próxima vez que se abre la
+  pestaña de Caminata — antes se perdía todo. Si el guardado en el
+  navegador falla (espacio lleno, modo privado), ahora aparece un aviso
+  visible en pantalla en vez de quedar solo en la consola.
 
 Publicar en un hosting público (GitHub Pages u otro) queda para una etapa
 posterior, a criterio del usuario — el sitio contiene datos personales reales
