@@ -12,7 +12,12 @@ rutina semanal de Verónica, con tema de cuarteto (Euge Quevedo). Incluye:
 - **Caminata**: tracking GPS en vivo con mapa (Leaflet + OpenStreetMap), sin
   costo, con un panel de estadísticas (distancia total, esta semana, este
   mes, racha de días con caminata, mejor caminata).
-- **Biblioteca**: accesos rápidos de música + tus propios links.
+- **Biblioteca**: accesos rápidos de música + tus propios links, más una
+  "canción del día" fija (elegida por fecha, editable en `app.js`).
+- **Clima y vestimenta**: temperatura de hoy (Viedma) y una sugerencia de
+  qué ropa llevar, en el header.
+- **Resumen semanal**: días de rutina completa, distancia y cantidad de
+  caminatas — aparece solo al mirar la pestaña Domingo.
 - **Recordatorios push**: aviso real (llega aunque la app esté cerrada)
   todos los días al arrancar cada bloque de la rutina, más un aviso de
   cumpleaños con anticipación configurable (1-7 días) — ver
@@ -369,4 +374,19 @@ El proyecto avanza por niveles definidos junto con el usuario:
   (PRs semanales de dependencias npm, raíz y `cloudflare/`, sin
   auto-merge). Ver
   `docs/specs/2026-08-19-nivel18-finde-cumples-config-perdones-dependabot.md`
+  para el diseño completo.
+- **Nivel 19** — cuatro piezas chicas: celebración especial (confetti
+  grande + banner + anuncio) al completar un bloque entero, más allá del
+  confetti chico por tarea; "canción del día" en Biblioteca
+  (`songOfTheDay()` en `logic.js`, elegida determinísticamente por
+  fecha); resumen semanal 100% local, visible solo en la pestaña Domingo
+  (sin push, sin gastar cupo de cron — ya está en 5/5 desde Nivel 18); y
+  sugerencia de vestimenta según el clima real del día (primera
+  integración externa de datos del proyecto, vía
+  [Open-Meteo](https://open-meteo.com/), gratis y sin API key, con la
+  ubicación fija de Viedma). De paso se corrigió un bug real: el service
+  worker interceptaba también los pedidos a APIs externas (no solo los
+  archivos propios de la app), lo que rompía tanto el mock de tests como
+  el manejo directo del navegador — ahora solo intercepta same-origin.
+  Ver `docs/specs/2026-08-19-nivel19-celebracion-cancion-resumen-clima.md`
   para el diseño completo.
