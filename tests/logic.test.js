@@ -11,6 +11,7 @@ const {
   escapeHtml,
   urlBase64ToUint8Array,
   computeStreak,
+  weeklyForgivesRemaining,
   totalWalkDistanceKm,
   bestWalkDistanceKm,
   walkDistanceThisWeek,
@@ -151,6 +152,39 @@ test('computeStreak: solo hoy completo, sin historial previo', () => {
   assert.equal(computeStreak([], '2026-08-17', true), 1);
 });
 
+test('computeStreak: sin perdones (parámetro omitido), un hueco corta igual que antes', () => {
+  const history = ['2026-08-17']; // lunes
+  // martes 18 falta -> sin perdón, corta ahí. Hoy miércoles 19, completo.
+  assert.equal(computeStreak(history, '2026-08-19', true), 1);
+});
+
+test('computeStreak: con perdón disponible, un hueco en la semana no corta la racha', () => {
+  const history = ['2026-08-17']; // lunes de la semana 17-23 ago
+  // martes 18 falta (se perdona) -> la racha sigue hasta el lunes.
+  // hoy miércoles 19, completo.
+  assert.equal(computeStreak(history, '2026-08-19', true, 1), 2);
+});
+
+test('computeStreak: dos huecos en la misma semana, el segundo sí corta (no acumulable)', () => {
+  const history = ['2026-08-17', '2026-08-21']; // lunes y viernes, semana 17-23 ago
+  // hoy lunes 24 (semana siguiente), completo. Camina hacia atrás: domingo 23
+  // falta -> se perdona (único cupo de la semana 17-23); sábado 22 también
+  // falta -> ya no queda perdón esa semana -> corta ahí, sin llegar a contar
+  // el viernes 21 ni el lunes 17 aunque estén en el historial.
+  assert.equal(computeStreak(history, '2026-08-24', true, 1), 1);
+});
+
+test('computeStreak: el perdón no usado en una semana no se acumula para la siguiente', () => {
+  const history = [
+    '2026-08-17', '2026-08-18', '2026-08-19', '2026-08-20', '2026-08-21', '2026-08-22', '2026-08-23', // semana 17-23, completa (perdón sin usar)
+    '2026-08-25', '2026-08-28', '2026-08-29', '2026-08-30', // semana 24-30: faltan 24, 26, 27
+  ];
+  // hoy lunes 31 ago, completo. domingo 30, sábado 29, viernes 28 presentes;
+  // jueves 27 falta -> se perdona (1er hueco de la semana 24-30); miércoles 26
+  // falta -> ya no queda perdón esa semana -> corta ahí (no llega hasta el 17).
+  assert.equal(computeStreak(history, '2026-08-31', true, 1), 4);
+});
+
 test('totalWalkDistanceKm: suma todas las sesiones, con o sin timestamp', () => {
   const history = [{ distanceKm: '2.50' }, { distanceKm: '1.25', timestamp: 1 }, { distanceKm: '0.75' }];
   assert.equal(totalWalkDistanceKm(history), 4.5);
@@ -207,4 +241,23 @@ test('walkStreakDays: sin caminata hoy, la racha es la de hasta ayer', () => {
 
 test('walkStreakDays: sin ninguna caminata da 0', () => {
   assert.equal(walkStreakDays([], '2026-08-17'), 0);
+});
+
+test('weeklyForgivesRemaining: lunes (sin días transcurridos todavía) da el cupo completo', () => {
+  assert.equal(weeklyForgivesRemaining([], '2026-08-17', 1), 1); // 17 ago es lunes
+});
+
+test('weeklyForgivesRemaining: sin huecos esta semana, sigue disponible', () => {
+  const history = ['2026-08-17', '2026-08-18']; // lunes y martes completos
+  assert.equal(weeklyForgivesRemaining(history, '2026-08-19', 1), 1); // hoy miércoles
+});
+
+test('weeklyForgivesRemaining: un hueco esta semana ya lo consume', () => {
+  const history = ['2026-08-17']; // falta el martes 18
+  assert.equal(weeklyForgivesRemaining(history, '2026-08-19', 1), 0); // hoy miércoles
+});
+
+test('weeklyForgivesRemaining: no baja de 0 aunque haya más huecos que cupo', () => {
+  const history = []; // faltan lunes y martes
+  assert.equal(weeklyForgivesRemaining(history, '2026-08-19', 1), 0);
 });

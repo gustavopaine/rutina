@@ -17,12 +17,23 @@ kv_namespaces = [
 #   Tarde  12:30 ART -> 15:30 UTC
 #   Noche  19:00 ART -> 22:00 UTC
 #   Aviso de cumpleaños (Nivel 17) 8:00 ART -> 11:00 UTC
+# Fin de semana (Nivel 18) — horarios propios, más tarde que los de semana
+# porque esos bloques son "Libre" en la rutina:
+#   Mañana 9:00  ART -> 12:00 UTC (mismo día, sáb/dom)
+#   Tarde  14:00 ART -> 17:00 UTC (mismo día, sáb/dom)
+#   Noche  21:00 ART -> 00:00 UTC del día siguiente (cruza medianoche UTC:
+#     sábado 21:00 ART = domingo 00:00 UTC, domingo 21:00 ART = lunes
+#     00:00 UTC — por eso el cron dispara domingo(0) y lunes(1) en UTC,
+#     no sábado/domingo).
 [triggers]
 crons = [
   "0 9 * * 1-5",
   "30 15 * * 1-5",
   "0 22 * * 1-5",
   "0 11 * * *",
+  "0 12 * * 0,6",
+  "0 17 * * 0,6",
+  "0 0 * * 0,1",
 ]
 
 # Públicas, no secretas: la public key VAPID viaja igual dentro de app.js.

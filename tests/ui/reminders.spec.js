@@ -17,6 +17,10 @@ async function setup(page, { permission = 'granted', subscribeStatus = 204 } = {
   await page.route(/rutina-veronica-push\.gustavopaine\.workers\.dev\/birthdays/, (route) =>
     route.fulfill({ status: 204, body: '' })
   );
+  // Nivel 18: también sincroniza los días de anticipación del cumpleaños.
+  await page.route(/rutina-veronica-push\.gustavopaine\.workers\.dev\/notice-days/, (route) =>
+    route.fulfill({ status: 204, body: '' })
+  );
   await page.addInitScript(({ permission }) => {
     Object.defineProperty(window.Notification, 'requestPermission', {
       value: async () => permission,
@@ -87,4 +91,26 @@ test('si el servidor rechaza la suscripción, avisa y no queda como activado', a
   await btn.click();
   await expect(btn).toHaveText('🔔 Activar recordatorios');
   await expect(page.locator('#reminderStatus')).toContainText('no respondió');
+});
+
+test('el select de días de anticipación del cumpleaños aparece solo con recordatorios activos y sincroniza al cambiarlo (Nivel 18)', async ({ page }) => {
+  await setup(page);
+  // Playwright prioriza el route registrado más recientemente: éste va
+  // DESPUÉS de setup() a propósito, para pisar el handler genérico de
+  // /notice-days que setup() ya registró y poder inspeccionar el body.
+  let noticeDaysBody = null;
+  await page.route(/rutina-veronica-push\.gustavopaine\.workers\.dev\/notice-days/, (route) => {
+    noticeDaysBody = route.request().postDataJSON();
+    route.fulfill({ status: 204, body: '' });
+  });
+
+  const wrap = page.locator('#noticeDaysWrap');
+  await expect(wrap).toBeHidden();
+
+  await page.locator('#reminderBtn').click();
+  await expect(wrap).toBeVisible();
+
+  await page.locator('#noticeDaysInput').selectOption('3');
+  await expect.poll(() => noticeDaysBody).not.toBeNull();
+  expect(noticeDaysBody).toEqual({ days: 3 });
 });

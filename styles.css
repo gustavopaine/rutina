@@ -188,6 +188,14 @@ h1 span{
    de la regla de arriba (misma especificidad, ambas de autor) — hay que decirlo explícito. */
 .streak-badge[hidden]{ display:none; }
 
+.streak-forgive-hint{
+  margin-top:6px;
+  font-size:11.5px;
+  font-weight:700;
+  color:var(--text-soft);
+}
+.streak-forgive-hint[hidden]{ display:none; }
+
 .tabs{
   display:flex;
   gap:6px;
@@ -489,6 +497,17 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
 .backup-btn:hover{ color:var(--orange-deep); border-color:var(--orange); }
 .backup-btn:focus-visible{ outline:2.5px solid var(--orange-deep); outline-offset:2px; }
 .reminder-status{ margin-top:8px; font-size:11.5px; }
+.notice-days-wrap{
+  display:flex; align-items:center; justify-content:center; flex-wrap:wrap;
+  gap:6px; margin-top:10px;
+  font-size:12px; font-weight:700; color:var(--text-soft);
+}
+.notice-days-wrap[hidden]{ display:none; }
+.notice-days-wrap select{
+  font-family:'Nunito', sans-serif; font-size:12px; font-weight:700;
+  padding:4px 8px; border-radius:10px; border:1.5px solid #EEDDD0;
+  background:var(--card); color:var(--text);
+}
 
 /* Caminata */
 .tab.walktab{ background:#DFFAF4; color:var(--teal-deep); }

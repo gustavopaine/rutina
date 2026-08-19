@@ -162,7 +162,10 @@ const DEFAULT_DATA = {
 };
 
 const ORDER = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
-const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays } = window.RutinaLogic;
+const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays } = window.RutinaLogic;
+// Perdones de racha de rutina (Nivel 18): 1 por semana calendario, fijo,
+// sin configuración en la UI — ver docs/specs/2026-08-19-nivel18-*.md.
+const STREAK_FORGIVE_PER_WEEK = 1;
 
 // ---- Anuncios puntuales para lectores de pantalla (no releer todo el panel) ----
 function announce(message){
@@ -345,12 +348,19 @@ function renderStreakBadge(){
   const { total, done } = countDone(todaysKey);
   const todayCompleted = total > 0 && done === total;
   const history = loadRoutineHistory().filter(d => d !== today);
-  const streak = computeStreak(history, today, todayCompleted);
+  const streak = computeStreak(history, today, todayCompleted, STREAK_FORGIVE_PER_WEEK);
+  const forgiveEl = document.getElementById('streakForgiveHint');
   if (streak > 0){
     el.hidden = false;
     el.textContent = `🔥 ${streak} día${streak === 1 ? '' : 's'} seguido${streak === 1 ? '' : 's'}`;
+    if (forgiveEl){
+      forgiveEl.hidden = false;
+      const remaining = weeklyForgivesRemaining(history, today, STREAK_FORGIVE_PER_WEEK);
+      forgiveEl.textContent = remaining > 0 ? '❄️ 1 perdón disponible esta semana' : '❄️ Perdón usado esta semana';
+    }
   } else {
     el.hidden = true;
+    if (forgiveEl) forgiveEl.hidden = true;
   }
 }
 
@@ -1377,6 +1387,7 @@ function exportData(){
     birthdays: localStorage.getItem(BIRTHDAYS_STORAGE_KEY),
     routine: localStorage.getItem(ROUTINE_STORAGE_KEY),
     routineHistory: localStorage.getItem(STREAK_STORAGE_KEY),
+    noticeDays: localStorage.getItem(NOTICE_DAYS_STORAGE_KEY),
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1402,6 +1413,7 @@ function importData(file){
       if (payload.birthdays) localStorage.setItem(BIRTHDAYS_STORAGE_KEY, payload.birthdays);
       if (payload.routine) localStorage.setItem(ROUTINE_STORAGE_KEY, payload.routine);
       if (payload.routineHistory) localStorage.setItem(STREAK_STORAGE_KEY, payload.routineHistory);
+      if (payload.noticeDays) localStorage.setItem(NOTICE_DAYS_STORAGE_KEY, payload.noticeDays);
       alert('Datos importados correctamente. La página se va a recargar.');
       location.reload();
     }catch(e){
@@ -1465,6 +1477,49 @@ async function syncBirthdaysToWorker(){
   }catch(e){ console.error('No se pudo sincronizar los cumpleaños con el servidor de recordatorios', e); }
 }
 
+// ---- Días de anticipación del aviso de cumpleaños (Nivel 18) ----
+const NOTICE_DAYS_STORAGE_KEY = 'veronica-birthday-notice-days';
+const noticeDaysWrap = document.getElementById('noticeDaysWrap');
+const noticeDaysInput = document.getElementById('noticeDaysInput');
+
+function loadNoticeDays(){
+  try{
+    const raw = localStorage.getItem(NOTICE_DAYS_STORAGE_KEY);
+    const n = raw ? parseInt(raw, 10) : 1;
+    return Number.isInteger(n) && n >= 1 && n <= 7 ? n : 1;
+  }catch(e){ return 1; }
+}
+function saveNoticeDays(days){
+  try{ localStorage.setItem(NOTICE_DAYS_STORAGE_KEY, String(days)); }
+  catch(e){ console.error('No se pudo guardar los días de anticipación del cumpleaños', e); showSaveError('No se pudo guardar la preferencia de aviso de cumpleaños.'); }
+}
+
+// Mismo patrón best-effort que syncBirthdaysToWorker(): no hace nada si no
+// hay suscripción activa (el Worker igual lo rechazaría).
+async function syncNoticeDaysToWorker(){
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try{
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) return;
+    const response = await fetch(`${PUSH_SERVER_URL}/notice-days`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days: loadNoticeDays() }),
+    });
+    if (!response.ok) console.error('El servidor de recordatorios rechazó los días de anticipación', response.status);
+  }catch(e){ console.error('No se pudo sincronizar los días de anticipación con el servidor de recordatorios', e); }
+}
+
+if (noticeDaysInput){
+  noticeDaysInput.value = String(loadNoticeDays());
+  noticeDaysInput.onchange = () => {
+    const days = parseInt(noticeDaysInput.value, 10);
+    saveNoticeDays(days);
+    syncNoticeDaysToWorker(); // fire-and-forget, mismo motivo que saveBirthdays()
+  };
+}
+
 const reminderBtn = document.getElementById('reminderBtn');
 const reminderStatus = document.getElementById('reminderStatus');
 
@@ -1478,10 +1533,12 @@ async function updateReminderButton(){
   const subscription = await registration.pushManager.getSubscription();
   if (subscription){
     reminderBtn.textContent = '🔕 Desactivar recordatorios';
-    setReminderStatus('Recordatorios activados: avisan lunes a viernes al arrancar cada bloque (Mañana/Tarde/Noche).');
+    setReminderStatus('Recordatorios activados: avisan todos los días al arrancar cada bloque (Mañana/Tarde/Noche).');
+    if (noticeDaysWrap) noticeDaysWrap.hidden = false;
   } else {
     reminderBtn.textContent = '🔔 Activar recordatorios';
     setReminderStatus('');
+    if (noticeDaysWrap) noticeDaysWrap.hidden = true;
   }
 }
 
@@ -1515,6 +1572,7 @@ async function subscribeToReminders(){
   // su valor inicial ([]) — hay que cargarlo antes de sincronizar.
   await loadBirthdays();
   await syncBirthdaysToWorker();
+  await syncNoticeDaysToWorker();
   return true;
 }
 

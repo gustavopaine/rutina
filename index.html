@@ -146,6 +146,7 @@
     <h1>La semana de <span>Verónica</span> 🎉</h1>
     <div class="sub">Cuarteto a pleno · Euge Quevedo · escuela de Lara</div>
     <div id="streakBadge" class="streak-badge" hidden></div>
+    <div id="streakForgiveHint" class="streak-forgive-hint" hidden></div>
   </header>
 
   <div class="tabs" id="tabs" role="tablist" aria-label="Días de la semana y secciones"></div>
@@ -161,6 +162,19 @@
       <button type="button" id="reminderBtn" class="backup-btn" hidden>🔔 Activar recordatorios</button>
     </div>
     <p id="reminderStatus" class="reminder-status" role="status" aria-live="polite"></p>
+    <div id="noticeDaysWrap" class="notice-days-wrap" hidden>
+      <label for="noticeDaysInput">🎂 Avisar cumpleaños con</label>
+      <select id="noticeDaysInput">
+        <option value="1">1 día</option>
+        <option value="2">2 días</option>
+        <option value="3">3 días</option>
+        <option value="4">4 días</option>
+        <option value="5">5 días</option>
+        <option value="6">6 días</option>
+        <option value="7">7 días</option>
+      </select>
+      <span>de anticipación</span>
+    </div>
   </footer>
 </div>
 

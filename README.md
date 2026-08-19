@@ -6,17 +6,19 @@ App de una sola sección por pestaña (sin backend para el contenido) para la
 rutina semanal de Verónica, con tema de cuarteto (Euge Quevedo). Incluye:
 
 - **Rutina semanal**: checklist por día (Mañana / Tarde / Noche), con progreso
-  y una racha ("🔥 N días seguidos") de días completos consecutivos.
+  y una racha ("🔥 N días seguidos") de días completos consecutivos — con 1
+  perdón por semana calendario, así saltear un día puntual no la corta.
 - **Cumpleaños**: lista con cuenta regresiva, editable desde la app.
 - **Caminata**: tracking GPS en vivo con mapa (Leaflet + OpenStreetMap), sin
   costo, con un panel de estadísticas (distancia total, esta semana, este
   mes, racha de días con caminata, mejor caminata).
 - **Biblioteca**: accesos rápidos de música + tus propios links.
-- **Recordatorios push**: aviso real (llega aunque la app esté cerrada) de
-  lunes a viernes al arrancar cada bloque de la rutina, más un aviso de
-  cumpleaños un día antes — ver [Recordatorios push](#recordatorios-push)
-  más abajo. Es la única parte de la app con una piecita server-side (un
-  Worker de Cloudflare, gratis), todo lo demás sigue sin backend.
+- **Recordatorios push**: aviso real (llega aunque la app esté cerrada)
+  todos los días al arrancar cada bloque de la rutina, más un aviso de
+  cumpleaños con anticipación configurable (1-7 días) — ver
+  [Recordatorios push](#recordatorios-push) más abajo. Es la única parte de
+  la app con una piecita server-side (un Worker de Cloudflare, gratis), todo
+  lo demás sigue sin backend.
 
 ## Cómo abrirla
 
@@ -158,28 +160,31 @@ el checklist, el historial de caminatas, la biblioteca y los cumpleaños.
 ## Recordatorios push
 
 Con el botón **🔔 Activar recordatorios** (pie de página), la app manda un
-push real de lunes a viernes al arrancar cada bloque de la rutina —
-Mañana (6:00), Tarde (12:30) y Noche (19:00), hora Argentina— que llega
-**aunque la app esté completamente cerrada**. El aviso es "ciego": solo
-dice qué bloque arrancó, no sabe qué tareas tenés tildadas (así el
-contenido de la rutina nunca sale del dispositivo). Sábado y domingo no
-avisan porque esos bloques son "Libre", sin horario fijo.
+push real al arrancar cada bloque de la rutina — Mañana, Tarde y Noche,
+hora Argentina, **todos los días de la semana** (6:00/12:30/19:00 lunes a
+viernes; 9:00/14:00/21:00 sábado y domingo, horarios propios porque esos
+bloques son "Libre", sin horario fijo real) — que llega **aunque la app
+esté completamente cerrada**. El aviso es "ciego": solo dice qué bloque
+arrancó, no sabe qué tareas tenés tildadas (así el contenido de la rutina
+nunca sale del dispositivo).
 
 El mismo botón también activa un **aviso de cumpleaños** ("🎂 Mañana
-cumple: {nombre(s)}"), un día antes, fijo y sin configuración en la UI. Al
-activar recordatorios (y en cada alta/edición/baja de un cumpleaños
-mientras sigan activos) la app sincroniza la lista actual de cumpleaños
-(solo nombre/día/mes, nunca año ni categoría) al Worker; al desactivar,
-se borra tanto la suscripción como esa lista.
+cumple: {nombre(s)}", o "🎂 En N días cumple: …" si se eligió más de un
+día), con anticipación configurable de 1 a 7 días (select que aparece al
+lado del botón una vez activado, 1 día por defecto). Al activar
+recordatorios (y en cada alta/edición/baja de un cumpleaños, o cambio de
+anticipación, mientras sigan activos) la app sincroniza la lista actual de
+cumpleaños (solo nombre/día/mes, nunca año ni categoría) y esa preferencia
+al Worker; al desactivar, se borra todo eso de la KV.
 
 Como la app no tiene servidor propio, esto necesita sí o sí una piecita
 externa que dispare el envío a la hora justa (ninguna magia de PWA lo
 resuelve sin backend). Se implementó como un **Worker de Cloudflare**
-(gratis, sin tarjeta) en `cloudflare/`, con Cron Triggers a esos 3 horarios
-más uno diario (8:00 ART) para el aviso de cumpleaños, y un KV namespace
-donde se guardan la suscripción del celular y la lista de cumpleaños. Ese
-Worker **no se deployea solo** ni desde el CI de este repo — es un setup
-manual, una sola vez:
+(gratis, sin tarjeta) en `cloudflare/`, con Cron Triggers a esos horarios
+(3 de semana + 3 de fin de semana + 1 diario para el aviso de cumpleaños)
+y un KV namespace donde se guardan la suscripción del celular, la lista de
+cumpleaños y la anticipación elegida. Ese Worker **no se deployea solo**
+ni desde el CI de este repo — es un setup manual, una sola vez:
 
 ```
 cd cloudflare
@@ -208,26 +213,29 @@ npx wrangler deploy
 
 La clave privada VAPID es lo único sensible de todo esto — vive solo como
 secreto de Cloudflare, nunca en el repo (que es público). Ninguno de los
-endpoints (`/subscribe`, `/unsubscribe`, `/birthdays`) tiene autenticación
-(nadie más lo necesita: es un solo dispositivo suscripto) — el Worker nunca
-devuelve lo que tiene guardado, solo lo usa para mandar el push. El peor
-caso si alguien encuentra y usa mal `/subscribe` o `/unsubscribe` es que
-los recordatorios dejen de llegar hasta volver a tocar "Activar". Con
-`/birthdays` el peor caso es un poco peor: mientras haya una suscripción
-activa, cualquiera puede sobrescribir la lista de cumpleaños con nombres
-inventados, y esos nombres van a aparecer tal cual en el próximo push de
-cumpleaños real ("🎂 Mañana cumple: …") — molesto, pero sin exponer ni
-comprometer ningún dato existente. Sincronizar cumpleaños de por sí ya es
+endpoints (`/subscribe`, `/unsubscribe`, `/birthdays`, `/notice-days`)
+tiene autenticación (nadie más lo necesita: es un solo dispositivo
+suscripto) — el Worker nunca devuelve lo que tiene guardado, solo lo usa
+para mandar el push. El peor caso si alguien encuentra y usa mal
+`/subscribe` o `/unsubscribe` es que los recordatorios dejen de llegar
+hasta volver a tocar "Activar". Con `/birthdays` (y, en menor medida,
+`/notice-days`) el peor caso es un poco peor: mientras haya una
+suscripción activa, cualquiera puede sobrescribir la lista de cumpleaños
+con nombres inventados (o cambiar la anticipación del aviso), y esos
+nombres van a aparecer tal cual en el próximo push de cumpleaños real
+("🎂 Mañana cumple: …") — molesto, pero sin exponer ni comprometer ningún
+dato existente. Sincronizar cumpleaños de por sí ya es
 una ampliación real del modelo de privacidad (nombres y fechas de
 nacimiento reales, ahora en la KV de Cloudflare además del dispositivo),
 aceptada porque ese dato ya es público de cualquier forma (el sitio no
 tiene login) y se borra al desactivar recordatorios.
 
-Ver `docs/specs/2026-08-18-recordatorios-push.md` (Nivel 16) y
-`docs/specs/2026-08-18-nivel17-racha-cumples-caminata.md` (Nivel 17) para
-el diseño completo (qué quedó afuera a propósito: recordatorio por tarea
-individual, fin de semana, más de un dispositivo suscripto, aviso de
-cumpleaños configurable, racha con perdones, gráfico de caminatas).
+Ver `docs/specs/2026-08-18-recordatorios-push.md` (Nivel 16),
+`docs/specs/2026-08-18-nivel17-racha-cumples-caminata.md` (Nivel 17) y
+`docs/specs/2026-08-19-nivel18-finde-cumples-config-perdones-dependabot.md`
+(Nivel 18) para el diseño completo (qué quedó afuera a propósito:
+recordatorio por tarea individual, más de un dispositivo suscripto,
+cantidad de perdones configurable, gráfico de caminatas).
 
 ## Roadmap (niveles)
 
@@ -349,3 +357,13 @@ El proyecto avanza por niveles definidos junto con el usuario:
   [Recordatorios push](#recordatorios-push) arriba y
   `docs/specs/2026-08-18-nivel17-racha-cumples-caminata.md` para el
   diseño completo.
+- **Nivel 18** — cuatro piezas: recordatorio push también sábado y
+  domingo (horarios propios, 9:00/14:00/21:00 ART, ya que esos bloques
+  son "Libre"); aviso de cumpleaños con anticipación configurable (1-7
+  días, select en el pie de página, endpoint nuevo `/notice-days`);
+  racha de rutina con 1 perdón por semana calendario (no acumulable,
+  automático, indicador "❄️" junto al badge); y Dependabot activado
+  (PRs semanales de dependencias npm, raíz y `cloudflare/`, sin
+  auto-merge). Ver
+  `docs/specs/2026-08-19-nivel18-finde-cumples-config-perdones-dependabot.md`
+  para el diseño completo.

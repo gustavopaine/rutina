@@ -1,5 +1,10 @@
 const { test, expect } = require('@playwright/test');
 const { gotoApp, reloadApp } = require('./helpers');
+const { computeStreak, weeklyForgivesRemaining } = require('../../logic.js');
+
+// Perdón semanal de la racha de rutina (Nivel 18) — debe coincidir con
+// STREAK_FORGIVE_PER_WEEK en app.js.
+const FORGIVE_PER_WEEK = 1;
 
 // No mockeamos Date: seedeamos el historial con fechas calculadas relativas
 // a "ahora" (mismo reloj que usa la app), así el test no depende de qué día
@@ -48,8 +53,8 @@ test('una racha previa en el historial se suma a la de hoy', async ({ page }) =>
   await expect(page.locator('#streakBadge')).toHaveText('🔥 4 días seguidos');
 });
 
-test('un hueco en el historial corta la racha antes de hoy', async ({ page }) => {
-  const history = [daysAgoIso(5), daysAgoIso(2), daysAgoIso(1)]; // falta el de hace 3-4 días
+test('un hueco de varios días en el historial corta la racha (con el perdón semanal ya aplicado)', async ({ page }) => {
+  const history = [daysAgoIso(5), daysAgoIso(2), daysAgoIso(1)]; // falta hace 3-4 días
   await page.evaluate((h) => localStorage.setItem('veronica-routine-history', JSON.stringify(h)), history);
   await reloadApp(page);
 
@@ -57,5 +62,30 @@ test('un hueco en el historial corta la racha antes de hoy', async ({ page }) =>
   const total = await checkboxes.count();
   for (let i = 0; i < total; i++) await checkboxes.nth(i).click();
 
-  await expect(page.locator('#streakBadge')).toHaveText('🔥 3 días seguidos');
+  // No se hardcodea el número: con el perdón semanal activo, el resultado
+  // exacto depende de si el hueco de 3-4 días atrás cruza un límite de
+  // semana (lunes), algo que varía según qué día real sea "hoy" cuando
+  // corre el test — se calcula con la misma función que usa la app.
+  const today = isoDate(new Date());
+  const expectedStreak = computeStreak(history, today, true, FORGIVE_PER_WEEK);
+  await expect(page.locator('#streakBadge')).toHaveText(
+    `🔥 ${expectedStreak} día${expectedStreak === 1 ? '' : 's'} seguido${expectedStreak === 1 ? '' : 's'}`
+  );
+});
+
+test('el indicador de perdón semanal (❄️) refleja el estado real, disponible o usado (Nivel 18)', async ({ page }) => {
+  await reloadApp(page);
+  const checkboxes = page.locator('.item .checkbox');
+  const total = await checkboxes.count();
+  for (let i = 0; i < total; i++) await checkboxes.nth(i).click();
+
+  // Sin historial de racha guardado: el estado del perdón esta semana
+  // depende de cuántos días ya pasaron desde el lunes, algo que varía
+  // según qué día real sea "hoy" — se calcula con la misma función que
+  // usa la app en vez de asumir un estado fijo.
+  const today = isoDate(new Date());
+  const remaining = weeklyForgivesRemaining([], today, FORGIVE_PER_WEEK);
+  const expectedText = remaining > 0 ? '❄️ 1 perdón disponible esta semana' : '❄️ Perdón usado esta semana';
+  await expect(page.locator('#streakForgiveHint')).toBeVisible();
+  await expect(page.locator('#streakForgiveHint')).toHaveText(expectedText);
 });
