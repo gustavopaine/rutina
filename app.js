@@ -162,7 +162,7 @@ const DEFAULT_DATA = {
 };
 
 const ORDER = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
-const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays, songOfTheDay, clothingSuggestion } = window.RutinaLogic;
+const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays, songOfTheDay, clothingSuggestion, mondayOfWeek } = window.RutinaLogic;
 
 // ---- Anuncios puntuales para lectores de pantalla (no releer todo el panel) ----
 function announce(message){
@@ -757,11 +757,19 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-async function loadWalkHistory(){
+// Lectura sincrónica compartida — loadWalkHistory() la usa para poblar el
+// `walkHistory` de módulo (pestaña Caminata); renderWeeklySummary() (Nivel
+// 19) la usa aparte para no depender de que esa pestaña ya se haya
+// visitado esta sesión (mismo motivo que llevó al mismo patrón en
+// syncBirthdaysToWorker() en Nivel 17).
+function readWalkHistoryFromStorage(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
-    walkHistory = raw ? JSON.parse(raw) : [];
-  }catch(e){ walkHistory = []; }
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+async function loadWalkHistory(){
+  walkHistory = readWalkHistoryFromStorage();
 }
 
 async function saveWalkHistory(){
@@ -1210,7 +1218,7 @@ async function renderLibrary(){
 // que sincronizar.
 function renderWeeklySummary(){
   const now = new Date();
-  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ORDER.indexOf(todayKey(now, ORDER)));
+  const monday = mondayOfWeek(now);
   const history = new Set(loadRoutineHistory());
   const today = isoDate(now);
   const { total, done } = countDone(todayKey(now, ORDER));
@@ -1222,11 +1230,7 @@ function renderWeeklySummary(){
     if (history.has(iso) || (iso === today && todayCompleted)) completeDays++;
   }
 
-  let weekWalks = [];
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    weekWalks = raw ? JSON.parse(raw) : [];
-  }catch(e){ weekWalks = []; }
+  const weekWalks = readWalkHistoryFromStorage();
   const weekKm = walkDistanceThisWeek(weekWalks, now);
   const weekWalksCount = weekWalks.filter(s => typeof s.timestamp === 'number' && s.timestamp >= monday.getTime()).length;
 
