@@ -1,10 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { gotoApp, reloadApp } = require('./helpers');
-const { computeStreak, weeklyForgivesRemaining } = require('../../logic.js');
-
-// Perdón semanal de la racha de rutina (Nivel 18) — debe coincidir con
-// STREAK_FORGIVE_PER_WEEK en app.js.
-const FORGIVE_PER_WEEK = 1;
+const { computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK: FORGIVE_PER_WEEK } = require('../../logic.js');
 
 // No mockeamos Date: seedeamos el historial con fechas calculadas relativas
 // a "ahora" (mismo reloj que usa la app), así el test no depende de qué día
@@ -62,10 +58,13 @@ test('un hueco de varios días en el historial corta la racha (con el perdón se
   const total = await checkboxes.count();
   for (let i = 0; i < total; i++) await checkboxes.nth(i).click();
 
-  // No se hardcodea el número: con el perdón semanal activo, el resultado
-  // exacto depende de si el hueco de 3-4 días atrás cruza un límite de
-  // semana (lunes), algo que varía según qué día real sea "hoy" cuando
-  // corre el test — se calcula con la misma función que usa la app.
+  // Decisión deliberada, no un atajo: no se hardcodea el número porque con
+  // el perdón semanal activo el resultado exacto depende de si el hueco de
+  // 3-4 días atrás cruza un límite de semana (lunes), algo que varía según
+  // qué día real sea "hoy" cuando corre el test. Este test verifica el
+  // cableado end-to-end (historial en localStorage -> badge en pantalla),
+  // no la matemática de computeStreak() en sí — eso ya está cubierto de
+  // forma exhaustiva y determinística (fechas fijas) en tests/logic.test.js.
   const today = isoDate(new Date());
   const expectedStreak = computeStreak(history, today, true, FORGIVE_PER_WEEK);
   await expect(page.locator('#streakBadge')).toHaveText(

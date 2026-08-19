@@ -36,18 +36,18 @@ const BIRTHDAY_CRON = '0 11 * * *';
 // horario real con la hora/día ART (no con event.cron, que es el mismo
 // string para las 9) — mismo truco de -3h que argentinaPlusDays().
 const WEEKEND_CRON = '0 0,12,17 * * SAT,SUN,MON';
+// Sábado y domingo mandan el mismo texto, así que la clave es solo la hora
+// ART — el chequeo de "es sábado o domingo" va aparte en weekendMessageFor().
 const WEEKEND_MESSAGES = {
-  // clave: "díaART-horaART" (día 0=domingo..6=sábado, como getUTCDay()).
-  '6-9':  { title: '🌅 Arrancó la Mañana', body: 'Revisá tu rutina de hoy.' },
-  '6-14': { title: '☀️ Arrancó la Tarde',  body: 'Revisá tu rutina de hoy.' },
-  '6-21': { title: '🌙 Arrancó la Noche',  body: 'Revisá tu rutina de hoy.' },
-  '0-9':  { title: '🌅 Arrancó la Mañana', body: 'Revisá tu rutina de hoy.' },
-  '0-14': { title: '☀️ Arrancó la Tarde',  body: 'Revisá tu rutina de hoy.' },
-  '0-21': { title: '🌙 Arrancó la Noche',  body: 'Revisá tu rutina de hoy.' },
+  9:  { title: '🌅 Arrancó la Mañana', body: 'Revisá tu rutina de hoy.' },
+  14: { title: '☀️ Arrancó la Tarde',  body: 'Revisá tu rutina de hoy.' },
+  21: { title: '🌙 Arrancó la Noche',  body: 'Revisá tu rutina de hoy.' },
 };
 function weekendMessageFor(now){
   const art = new Date(now.getTime() - 3 * 3600 * 1000);
-  return WEEKEND_MESSAGES[`${art.getUTCDay()}-${art.getUTCHours()}`] || null;
+  const weekday = art.getUTCDay(); // 0=domingo..6=sábado
+  if (weekday !== 0 && weekday !== 6) return null; // lunes espurio del cruce hora×día
+  return WEEKEND_MESSAGES[art.getUTCHours()] || null;
 }
 
 function corsHeaders(env){

@@ -3,6 +3,11 @@
    como módulo CommonJS en los tests (require('../logic.js')). */
 (function (root) {
 
+  // Perdones de racha de rutina por semana calendario (Nivel 18) — fuente
+  // única de verdad, usada por app.js (computeStreak/weeklyForgivesRemaining)
+  // y por los tests, para que no puedan quedar desincronizados entre sí.
+  const STREAK_FORGIVE_PER_WEEK = 1;
+
   function haversine(a, b){
     const R = 6371000;
     const dLat = (b.lat - a.lat) * Math.PI/180;
@@ -147,8 +152,7 @@
 
   // Semana empieza el lunes (mismo criterio que ORDER/todayKey en el resto de la app).
   function walkDistanceThisWeek(history, now){
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset(now)).getTime();
-    return sumWalkDistanceSince(history, start);
+    return sumWalkDistanceSince(history, mondayOfWeek(now).getTime());
   }
 
   function walkDistanceThisMonth(history, now){
@@ -181,7 +185,7 @@
     return 'No pude acceder a la ubicación. Revisá los permisos del navegador.';
   }
 
-  const api = { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays };
+  const api = { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RutinaLogic = api;
 

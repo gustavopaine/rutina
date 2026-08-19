@@ -65,9 +65,15 @@ cumpleaños configurable, alcance de Dependabot — ver resumen.
 ## Scope boundary
 
 ### This iteration
-1. **Recordatorio de fin de semana**: 3 crons nuevos en el Worker
-   (sábado y domingo, mismos 3 horarios-tipo que semana pero adaptados
-   a "Libre"), mismo mensaje genérico que los de semana.
+1. **Recordatorio de fin de semana**: mismos 3 horarios-tipo que semana
+   pero adaptados a "Libre" (sábado y domingo), mismo mensaje genérico
+   que los de semana. **[actualizado durante la implementación]** El
+   plan free de Cloudflare permite 5 Cron Triggers por cuenta, no 7
+   (3 de semana + 1 de cumpleaños + 3 de finde) — los 3 horarios de
+   fin de semana comparten un solo Cron Trigger combinado en vez de
+   uno cada uno; el Worker decide con la hora/día ART real cuál de
+   los 3 mensajes corresponde. Ver `cloudflare/src/worker.js`
+   (`WEEKEND_CRON`/`weekendMessageFor()`) para el detalle.
 2. **Aviso de cumpleaños configurable**: select de 1-7 días en la UI
    (cerca del botón de recordatorios o en la pestaña Cumples), se
    sincroniza al Worker igual que la lista de cumpleaños, el cron lee el
@@ -89,9 +95,14 @@ cumpleaños configurable, alcance de Dependabot — ver resumen.
 
 ## Risks and failure modes
 
-- **Cron nuevo en el Worker**: 3 crons más suman al límite de Cron
-  Triggers del plan free de Cloudflare (bien por debajo, hoy son 4, con
-  esto quedan 7 — el límite gratuito es bastante más alto).
+- **Cron nuevo en el Worker**: la estimación original ("el límite
+  gratuito es bastante más alto") era incorrecta — el plan free permite
+  **5 Cron Triggers por cuenta en total**, no por Worker, y con 3 de
+  semana + 1 de cumpleaños ya se usaban 4 antes de este nivel. Se
+  descubrió recién al intentar deployar 7. Mitigación aplicada: los 3
+  horarios de fin de semana comparten un único Cron Trigger combinado
+  (queda en 5/5 — sin margen para un cron nuevo sin sacar otro, o pasar
+  a Workers Paid). Riesgo residual anotado en Deferred aspects.
 - **Perdones y zona horaria**: "semana calendario" tiene que calcularse
   con el mismo criterio lunes-primero que ya usa `mondayOffset()` en
   `logic.js` (reusar, no reinventar) para evitar otro bug de huso
@@ -140,10 +151,18 @@ app.js                    + UI de días de anticipación (select +
 index.html                + contenedor del select de anticipación
 styles.css                + estilos del select y del indicador de
                           perdón
-cloudflare/src/worker.js  + 3 crons de fin de semana en BLOCK_MESSAGES
+cloudflare/src/worker.js  + WEEKEND_CRON/weekendMessageFor(): 1 cron
+                          combinado para los 3 bloques de fin de
+                          semana (ver Risks)
                           + handleBirthdayCron() lee notice-days de
                           la KV en vez de +1 fijo
-cloudflare/wrangler.toml  + 3 Cron Triggers nuevos (sábado/domingo)
+                          + fix real de bug de Nivel 16: los crons de
+                          semana usaban "1-5" asumiendo el estándar
+                          POSIX (0=domingo), pero Cloudflare numera
+                          1=domingo..7=sábado — corregidos a
+                          "MON-FRI" (abreviaturas, sin ambigüedad)
+cloudflare/wrangler.toml  + 1 Cron Trigger combinado nuevo (fin de
+                          semana) + fix de los 3 existentes (ver arriba)
 .github/dependabot.yml    (nuevo) — npm, root + cloudflare/, semanal
 README.md                + roadmap Nivel 18, sección de recordatorios
                           actualizada
@@ -168,6 +187,18 @@ sin excepción).
 - **Auto-merge de Dependabot**: no pedido, y va en contra de la cultura
   de revisión manual de este repo — reconsiderarlo si el volumen de PRs
   se vuelve una carga real.
+- **Presupuesto de Cron Triggers agotado** (descubierto en este nivel,
+  no pedido resolverlo ahora): el plan free de Cloudflare permite 5 por
+  cuenta y ya se usan los 5. El próximo recordatorio nuevo basado en
+  horario (ej. un horario distinto por día de semana, un resumen a
+  mitad de semana) no tiene cupo y va a necesitar repetir el truco de
+  "un cron combinado + tabla de horarios en el código" (`WEEKEND_CRON`/
+  `weekendMessageFor()` en `cloudflare/src/worker.js`), o migrar a un
+  único cron "heartbeat" (ej. cada 15-30 min) que lea una tabla de
+  horarios desde la KV en vez de depender de más Cron Triggers, o pasar
+  a Workers Paid (sube el límite a 1000). Encaja como una decisión de
+  arquitectura a tomar cuando se pida la próxima feature de horarios,
+  no antes.
 
 ## Implementation guidance
 - TDD: apagado, salvo `logic.js` — mismo patrón que niveles anteriores.

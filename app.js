@@ -162,10 +162,7 @@ const DEFAULT_DATA = {
 };
 
 const ORDER = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
-const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays } = window.RutinaLogic;
-// Perdones de racha de rutina (Nivel 18): 1 por semana calendario, fijo,
-// sin configuración en la UI — ver docs/specs/2026-08-19-nivel18-*.md.
-const STREAK_FORGIVE_PER_WEEK = 1;
+const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays } = window.RutinaLogic;
 
 // ---- Anuncios puntuales para lectores de pantalla (no releer todo el panel) ----
 function announce(message){
@@ -1452,29 +1449,36 @@ if ('serviceWorker' in navigator){
 const VAPID_PUBLIC_KEY = 'BKS7dha6Jk1ijHBI05bfuxaYk_Q_Lh028EfeUSndMCloJzHrfibh0Nmb18hnKru-dBnwhMG5nl9oFsDQt9NrBu0';
 const PUSH_SERVER_URL = 'https://rutina-veronica-push.gustavopaine.workers.dev';
 
-// Manda solo nombre/día/mes (sin categoría ni año) al Worker — es lo único
-// que necesita para armar el aviso "mañana cumple Fulano". Se llama al
-// activar recordatorios y en cada alta/edición/baja de un cumpleaños; si no
-// hay suscripción activa no manda nada (el Worker igual la rechazaría, ver
-// docs/specs/2026-08-18-nivel17-racha-cumples-caminata.md).
-// No relee localStorage acá: usa el `birthdays` en memoria tal cual está
-// (el llamador es responsable de que esté al día — ver saveBirthdays() y
-// subscribeToReminders()). Releerlo acá pisaría un guardado que acaba de
-// fallar con la versión vieja de disco, en vez de sincronizar la nueva.
-async function syncBirthdaysToWorker(){
+// Best-effort: POST a un endpoint del Worker que requiere suscripción
+// activa (el Worker igual lo rechazaría sin una). No hace nada si el
+// navegador no soporta push o no hay suscripción, y nunca lanza — pensado
+// para llamarse fire-and-forget. Compartido por syncBirthdaysToWorker() y
+// syncNoticeDaysToWorker() (Nivel 17/18).
+async function postToWorkerIfSubscribed(path, body, errorLabel){
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try{
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
     if (!subscription) return;
-    const payload = birthdays.map(b => ({ name: b.name, day: b.day, month: b.month }));
-    const response = await fetch(`${PUSH_SERVER_URL}/birthdays`, {
+    const response = await fetch(`${PUSH_SERVER_URL}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
-    if (!response.ok) console.error('El servidor de recordatorios rechazó la sincronización de cumpleaños', response.status);
-  }catch(e){ console.error('No se pudo sincronizar los cumpleaños con el servidor de recordatorios', e); }
+    if (!response.ok) console.error(`El servidor de recordatorios rechazó la sincronización de ${errorLabel}`, response.status);
+  }catch(e){ console.error(`No se pudo sincronizar ${errorLabel} con el servidor de recordatorios`, e); }
+}
+
+// Manda solo nombre/día/mes (sin categoría ni año) al Worker — es lo único
+// que necesita para armar el aviso "mañana cumple Fulano". Se llama al
+// activar recordatorios y en cada alta/edición/baja de un cumpleaños.
+// No relee localStorage acá: usa el `birthdays` en memoria tal cual está
+// (el llamador es responsable de que esté al día — ver saveBirthdays() y
+// subscribeToReminders()). Releerlo acá pisaría un guardado que acaba de
+// fallar con la versión vieja de disco, en vez de sincronizar la nueva.
+async function syncBirthdaysToWorker(){
+  const payload = birthdays.map(b => ({ name: b.name, day: b.day, month: b.month }));
+  await postToWorkerIfSubscribed('/birthdays', payload, 'los cumpleaños');
 }
 
 // ---- Días de anticipación del aviso de cumpleaños (Nivel 18) ----
@@ -1494,21 +1498,8 @@ function saveNoticeDays(days){
   catch(e){ console.error('No se pudo guardar los días de anticipación del cumpleaños', e); showSaveError('No se pudo guardar la preferencia de aviso de cumpleaños.'); }
 }
 
-// Mismo patrón best-effort que syncBirthdaysToWorker(): no hace nada si no
-// hay suscripción activa (el Worker igual lo rechazaría).
 async function syncNoticeDaysToWorker(){
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-  try{
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
-    if (!subscription) return;
-    const response = await fetch(`${PUSH_SERVER_URL}/notice-days`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ days: loadNoticeDays() }),
-    });
-    if (!response.ok) console.error('El servidor de recordatorios rechazó los días de anticipación', response.status);
-  }catch(e){ console.error('No se pudo sincronizar los días de anticipación con el servidor de recordatorios', e); }
+  await postToWorkerIfSubscribed('/notice-days', { days: loadNoticeDays() }, 'los días de anticipación');
 }
 
 if (noticeDaysInput){
@@ -1571,8 +1562,7 @@ async function subscribeToReminders(){
   // Si nunca se visitó la pestaña Cumples esta sesión, `birthdays` sigue en
   // su valor inicial ([]) — hay que cargarlo antes de sincronizar.
   await loadBirthdays();
-  await syncBirthdaysToWorker();
-  await syncNoticeDaysToWorker();
+  await Promise.all([syncBirthdaysToWorker(), syncNoticeDaysToWorker()]);
   return true;
 }
 

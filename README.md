@@ -180,9 +180,12 @@ al Worker; al desactivar, se borra todo eso de la KV.
 Como la app no tiene servidor propio, esto necesita sí o sí una piecita
 externa que dispare el envío a la hora justa (ninguna magia de PWA lo
 resuelve sin backend). Se implementó como un **Worker de Cloudflare**
-(gratis, sin tarjeta) en `cloudflare/`, con Cron Triggers a esos horarios
-(3 de semana + 3 de fin de semana + 1 diario para el aviso de cumpleaños)
-y un KV namespace donde se guardan la suscripción del celular, la lista de
+(gratis, sin tarjeta) en `cloudflare/`, con 5 Cron Triggers — el máximo
+del plan free por cuenta: 3 de semana, 1 diario para el aviso de
+cumpleaños, y **1 combinado para los 3 bloques de fin de semana**
+(dispara en varios horarios/días y el código decide adentro cuál de los
+tres mensajes corresponde, o si no corresponde ninguno) — y un KV
+namespace donde se guardan la suscripción del celular, la lista de
 cumpleaños y la anticipación elegida. Ese Worker **no se deployea solo**
 ni desde el CI de este repo — es un setup manual, una sola vez:
 
