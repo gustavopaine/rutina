@@ -14,21 +14,41 @@ const BIRTHDAYS_KEY = 'birthdays';
 const NOTICE_DAYS_KEY = 'notice-days';
 const DEFAULT_NOTICE_DAYS = 1;
 
-// event.cron -> texto de la notificación. Debe coincidir exactamente con
-// los crons definidos en wrangler.toml.
+// event.cron -> texto de la notificación. Debe coincidir CARÁCTER A
+// CARÁCTER con los crons definidos en wrangler.toml (Cloudflare no
+// normaliza el string). Cloudflare numera el día de semana 1=domingo..
+// 7=sábado (distinto del estándar 0=domingo..6=sábado) — se usan
+// abreviaturas de 3 letras en vez de números para no pisarla de nuevo.
 const BLOCK_MESSAGES = {
-  '0 9 * * 1-5':   { title: '🌅 Arrancó la Mañana',  body: 'Revisá tu rutina de hoy.' },
-  '30 15 * * 1-5': { title: '☀️ Arrancó la Tarde',   body: 'Revisá tu rutina de hoy.' },
-  '0 22 * * 1-5':  { title: '🌙 Arrancó la Noche',   body: 'Revisá tu rutina de hoy.' },
-  // Fin de semana (Nivel 18), horarios propios porque esos bloques son
-  // "Libre" en la rutina (sin horario fijo real de qué inferir): 9:00,
-  // 14:00 y 21:00 ART. Igual que arriba: coinciden con wrangler.toml.
-  '0 12 * * 0,6':  { title: '🌅 Arrancó la Mañana',  body: 'Revisá tu rutina de hoy.' },
-  '0 17 * * 0,6':  { title: '☀️ Arrancó la Tarde',   body: 'Revisá tu rutina de hoy.' },
-  '0 0 * * 0,1':   { title: '🌙 Arrancó la Noche',   body: 'Revisá tu rutina de hoy.' },
+  '0 9 * * MON-FRI':   { title: '🌅 Arrancó la Mañana',  body: 'Revisá tu rutina de hoy.' },
+  '30 15 * * MON-FRI': { title: '☀️ Arrancó la Tarde',   body: 'Revisá tu rutina de hoy.' },
+  '0 22 * * MON-FRI':  { title: '🌙 Arrancó la Noche',   body: 'Revisá tu rutina de hoy.' },
 };
 // Cron diario del aviso de cumpleaños (8:00 ART = 11:00 UTC, ver wrangler.toml).
 const BIRTHDAY_CRON = '0 11 * * *';
+
+// Fin de semana (Nivel 18): el plan free de Cloudflare permite 5 Cron
+// Triggers por cuenta, así que los 3 bloques de sábado/domingo comparten
+// UN cron combinado ("0 0,12,17 * * SAT,SUN,MON", ver wrangler.toml) en
+// vez de uno cada uno. Ese cron dispara en 9 combinaciones hora×día; solo
+// 6 corresponden a un horario ART real (9/14/21 hs sábado y domingo), las
+// otras 3 son subproducto del cruce y no hacen nada. Se identifica el
+// horario real con la hora/día ART (no con event.cron, que es el mismo
+// string para las 9) — mismo truco de -3h que argentinaPlusDays().
+const WEEKEND_CRON = '0 0,12,17 * * SAT,SUN,MON';
+const WEEKEND_MESSAGES = {
+  // clave: "díaART-horaART" (día 0=domingo..6=sábado, como getUTCDay()).
+  '6-9':  { title: '🌅 Arrancó la Mañana', body: 'Revisá tu rutina de hoy.' },
+  '6-14': { title: '☀️ Arrancó la Tarde',  body: 'Revisá tu rutina de hoy.' },
+  '6-21': { title: '🌙 Arrancó la Noche',  body: 'Revisá tu rutina de hoy.' },
+  '0-9':  { title: '🌅 Arrancó la Mañana', body: 'Revisá tu rutina de hoy.' },
+  '0-14': { title: '☀️ Arrancó la Tarde',  body: 'Revisá tu rutina de hoy.' },
+  '0-21': { title: '🌙 Arrancó la Noche',  body: 'Revisá tu rutina de hoy.' },
+};
+function weekendMessageFor(now){
+  const art = new Date(now.getTime() - 3 * 3600 * 1000);
+  return WEEKEND_MESSAGES[`${art.getUTCDay()}-${art.getUTCHours()}`] || null;
+}
 
 function corsHeaders(env){
   return {
@@ -190,13 +210,17 @@ export default {
   },
 
   async scheduled(event, env){
+    const now = new Date(event.scheduledTime);
+
     if (event.cron === BIRTHDAY_CRON){
-      await handleBirthdayCron(env, new Date(event.scheduledTime));
+      await handleBirthdayCron(env, now);
       return;
     }
 
-    const message = BLOCK_MESSAGES[event.cron];
-    if (!message) return; // cron desconocido, no debería pasar
+    const message = event.cron === WEEKEND_CRON
+      ? weekendMessageFor(now) // null en los 3 disparos espurios del cruce hora×día
+      : BLOCK_MESSAGES[event.cron];
+    if (!message) return; // cron desconocido o disparo espurio de fin de semana
 
     const raw = await env.SUBSCRIPTIONS.get(SUBSCRIPTION_KEY);
     if (!raw) return; // nadie suscripto, nada para mandar

@@ -23,17 +23,29 @@ kv_namespaces = [
 #   Tarde  14:00 ART -> 17:00 UTC (mismo día, sáb/dom)
 #   Noche  21:00 ART -> 00:00 UTC del día siguiente (cruza medianoche UTC:
 #     sábado 21:00 ART = domingo 00:00 UTC, domingo 21:00 ART = lunes
-#     00:00 UTC — por eso el cron dispara domingo(0) y lunes(1) en UTC,
-#     no sábado/domingo).
+#     00:00 UTC — por eso el cron dispara domingo y lunes en UTC, no
+#     sábado/domingo).
+# IMPORTANTE (Nivel 18, encontrado al agregar los crons de fin de semana):
+# Cloudflare numera el día de semana 1=domingo..7=sábado, DISTINTO del
+# estándar 0=domingo..6=sábado — "1-5" no es lunes-viernes acá, es
+# domingo-jueves. Se usan siempre abreviaturas de 3 letras (MON, TUE, ...)
+# para evitar esta ambigüedad, incluso en los crons de semana que ya
+# estaban (se corrigieron de "1-5" a "MON-FRI" en esta misma pasada).
+#
+# El plan free de Cloudflare permite 5 Cron Triggers POR CUENTA (no por
+# Worker) — con 3 de semana + 1 de cumpleaños ya usábamos 4, así que el
+# fin de semana entero va en UN solo cron combinado (no uno por bloque):
+# dispara a las 00:00, 12:00 y 17:00 UTC en sábado, domingo y lunes (9
+# combinaciones), y el código en worker.js decide con la hora/día ART real
+# cuál de los 6 disparos válidos es (o no hace nada en los otros 3,
+# subproducto inevitable de cruzar horas×días en un solo cron).
 [triggers]
 crons = [
-  "0 9 * * 1-5",
-  "30 15 * * 1-5",
-  "0 22 * * 1-5",
+  "0 9 * * MON-FRI",
+  "30 15 * * MON-FRI",
+  "0 22 * * MON-FRI",
   "0 11 * * *",
-  "0 12 * * 0,6",
-  "0 17 * * 0,6",
-  "0 0 * * 0,1",
+  "0 0,12,17 * * SAT,SUN,MON",
 ]
 
 # Públicas, no secretas: la public key VAPID viaja igual dentro de app.js.
