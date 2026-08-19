@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rutina-veronica-v13';
+const CACHE_NAME = 'rutina-veronica-v14';
 const APP_SHELL = [
   './',
   './index.html',
@@ -28,9 +28,14 @@ self.addEventListener('activate', (event) => {
 });
 
 // App shell: cache primero (funciona offline). Recursos externos (fuentes,
-// Leaflet, mapa): siguen necesitando conexión, no se cachean acá.
+// Leaflet, mapa, clima): siguen necesitando conexión, no se cachean acá —
+// y ni siquiera se interceptan (event.respondWith), para que el navegador
+// los maneje directamente. Nivel 19: interceptarlos igual (como hacía
+// antes) rompía el mock de Open-Meteo en los tests de Playwright, porque
+// el fetch pasaba por este Service Worker en vez de por la página.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  if (!event.request.url.startsWith(self.location.origin)) return;
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
@@ -38,7 +43,7 @@ self.addEventListener('fetch', (event) => {
       // Sin nada en caché: dejamos que el fetch normal falle si no hay red
       // (no devolvemos undefined a respondWith, que no es una respuesta válida).
       return fetch(event.request).then((response) => {
-        if (response.ok && event.request.url.startsWith(self.location.origin)) {
+        if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }

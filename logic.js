@@ -84,6 +84,39 @@
     return new Date(date.getFullYear(), date.getMonth(), date.getDate() - mondayOffset(date));
   }
 
+  // Día del año (1 = 1° de enero) a partir de las fechas UTC-normalizadas de
+  // los componentes locales — evita cualquier corrimiento de una hora por
+  // DST (Argentina no tiene, pero así no depende de en qué huso corre el
+  // navegador/test). Usado por songOfTheDay() para elegir determinísticamente.
+  function dayOfYear(now){
+    const startUTC = Date.UTC(now.getFullYear(), 0, 1);
+    const nowUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.round((nowUTC - startUTC) / 86400000) + 1;
+  }
+
+  // Elige un ítem de `list` de forma determinística por fecha (mismo tema
+  // todo el día, distinto al día siguiente) — nada al azar, mismo criterio
+  // que el resto de la app (Nivel 19: canción del día).
+  function songOfTheDay(list, now){
+    if (!list || !list.length) return null;
+    return list[dayOfYear(now) % list.length];
+  }
+
+  // Sugerencia de vestimenta según temperatura/lluvia/viento (Nivel 19).
+  // Umbrales a criterio propio (clima templado de la Patagonia Norte),
+  // triviales de ajustar — son constantes en una sola función.
+  function clothingSuggestion(tempC, precipMm, windKmh){
+    let base;
+    if (tempC < 10) base = 'Abrigate bien 🧥';
+    else if (tempC < 18) base = 'Llevá campera 🧥';
+    else if (tempC <= 25) base = 'Ropa liviana, puede refrescar a la noche 👕';
+    else base = 'Ropa fresca y mucha agua 🥤';
+    const extras = [];
+    if (precipMm > 0) extras.push('☔ Llevá paraguas');
+    if (windKmh > 30) extras.push('💨 Hace viento, algo que no vuele');
+    return [base, ...extras].join(' · ');
+  }
+
   // Cuenta hacia atrás desde hoy mientras haya fechas calendario consecutivas
   // en historyDates. historyDates son días ya "cerrados" (persistidos);
   // todayCompleted cubre el día de hoy aparte, que todavía no se guardó en el
@@ -185,7 +218,7 @@
     return 'No pude acceder a la ubicación. Revisá los permisos del navegador.';
   }
 
-  const api = { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays };
+  const api = { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays, songOfTheDay, clothingSuggestion };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RutinaLogic = api;
 

@@ -17,6 +17,8 @@ const {
   walkDistanceThisWeek,
   walkDistanceThisMonth,
   walkStreakDays,
+  songOfTheDay,
+  clothingSuggestion,
 } = require('../logic.js');
 
 function toBase64Url(str){
@@ -260,4 +262,54 @@ test('weeklyForgivesRemaining: un hueco esta semana ya lo consume', () => {
 test('weeklyForgivesRemaining: no baja de 0 aunque haya más huecos que cupo', () => {
   const history = []; // faltan lunes y martes
   assert.equal(weeklyForgivesRemaining(history, '2026-08-19', 1), 0);
+});
+
+test('songOfTheDay: elige el mismo item todo el día, determinístico por fecha', () => {
+  const list = ['A', 'B', 'C'];
+  // 19 de agosto de 2026 es el día 231 del año; 231 % 3 === 0.
+  assert.equal(songOfTheDay(list, new Date(2026, 7, 19)), 'A');
+  assert.equal(songOfTheDay(list, new Date(2026, 7, 19, 23, 59)), 'A'); // misma fecha, otra hora
+});
+
+test('songOfTheDay: 1° de enero es el día 1 del año', () => {
+  const list = ['A', 'B', 'C'];
+  assert.equal(songOfTheDay(list, new Date(2026, 0, 1)), 'B'); // 1 % 3 === 1
+});
+
+test('songOfTheDay: lista vacía da null', () => {
+  assert.equal(songOfTheDay([], new Date(2026, 7, 19)), null);
+});
+
+test('clothingSuggestion: frío sugiere abrigo', () => {
+  assert.equal(clothingSuggestion(5, 0, 0), 'Abrigate bien 🧥');
+});
+
+test('clothingSuggestion: templado sugiere campera', () => {
+  assert.equal(clothingSuggestion(15, 0, 0), 'Llevá campera 🧥');
+  assert.equal(clothingSuggestion(10, 0, 0), 'Llevá campera 🧥'); // límite inferior
+});
+
+test('clothingSuggestion: agradable sugiere ropa liviana', () => {
+  assert.equal(clothingSuggestion(20, 0, 0), 'Ropa liviana, puede refrescar a la noche 👕');
+  assert.equal(clothingSuggestion(18, 0, 0), 'Ropa liviana, puede refrescar a la noche 👕'); // límite inferior
+  assert.equal(clothingSuggestion(25, 0, 0), 'Ropa liviana, puede refrescar a la noche 👕'); // límite superior
+});
+
+test('clothingSuggestion: calor sugiere ropa fresca', () => {
+  assert.equal(clothingSuggestion(30, 0, 0), 'Ropa fresca y mucha agua 🥤');
+});
+
+test('clothingSuggestion: agrega aviso de lluvia si hay precipitación', () => {
+  assert.equal(clothingSuggestion(20, 5, 0), 'Ropa liviana, puede refrescar a la noche 👕 · ☔ Llevá paraguas');
+});
+
+test('clothingSuggestion: agrega aviso de viento si supera el umbral', () => {
+  assert.equal(clothingSuggestion(20, 0, 40), 'Ropa liviana, puede refrescar a la noche 👕 · 💨 Hace viento, algo que no vuele');
+});
+
+test('clothingSuggestion: combina lluvia y viento si aplican los dos', () => {
+  assert.equal(
+    clothingSuggestion(5, 2, 40),
+    'Abrigate bien 🧥 · ☔ Llevá paraguas · 💨 Hace viento, algo que no vuele'
+  );
 });

@@ -162,7 +162,7 @@ const DEFAULT_DATA = {
 };
 
 const ORDER = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
-const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays } = window.RutinaLogic;
+const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays, songOfTheDay, clothingSuggestion } = window.RutinaLogic;
 
 // ---- Anuncios puntuales para lectores de pantalla (no releer todo el panel) ----
 function announce(message){
@@ -1049,6 +1049,21 @@ const QUICK_LINKS = [
   { title:"Podcasts / audios en Spotify", url:"https://open.spotify.com/search/podcasts", icon:"🎙️", c1:"#14B39E", c2:"#0E9483" },
 ];
 
+// Canción del día (Nivel 19): una sugerencia fija por día, elegida por
+// fecha (mismo criterio determinístico que el resto de la app, nada al
+// azar). Arranca con las mismas URLs ya verificadas de QUICK_LINKS de
+// arriba, en vez de temas puntuales inventados que no se puede confirmar
+// que existan o funcionen — reemplazá estas entradas por canciones
+// específicas cuando quieras, mismo patrón editable que el resto de los
+// datos de la app.
+const DAILY_SONGS = [
+  { title:"Euge Quevedo · YouTube oficial", url:"https://www.youtube.com/channel/UC2fMc29XAwRkf3w57GRGMlg/videos", icon:"▶️", c1:"#FF5FA8", c2:"#E83D8C" },
+  { title:"Euge Quevedo · Spotify", url:"http://smarturl.it/eugeniaquevedosp", icon:"🎧", c1:"#2FD9C4", c2:"#14B39E" },
+  { title:"Más cuarteto en YouTube Music", url:"https://music.youtube.com/search?q=cuarteto", icon:"🪗", c1:"#FFC145", c2:"#FFA53D" },
+  { title:"Más cuarteto en Spotify", url:"https://open.spotify.com/search/cuarteto", icon:"🎵", c1:"#A487F5", c2:"#8360E8" },
+  { title:"Cuarteto en vivo (videos)", url:"https://www.youtube.com/results?search_query=cuarteto+en+vivo", icon:"📺", c1:"#FF8A3D", c2:"#F26A1B" },
+];
+
 const LIB_TYPE_ICON = { musica:"🎵", audio:"🎙️", video:"📺" };
 const LIB_TYPE_LABEL = { musica:"Música", audio:"Audio / podcast", video:"Video" };
 
@@ -1121,11 +1136,20 @@ async function submitLibraryForm(){
 
 async function renderLibrary(){
   const wrap = document.getElementById('dayContent');
+  const song = songOfTheDay(DAILY_SONGS, new Date());
   wrap.innerHTML = `
     <div class="lib-banner">
       <div class="name">🎵 Biblioteca para el camino</div>
       <div class="banner-note">Accesos directos a cuarteto y espacio para guardar tus propios temas, audios o videos. Se abren en YouTube, Spotify o la app que tengas instalada.</div>
     </div>
+
+    ${song ? `
+    <div class="lib-section-title">🎵 Canción del día</div>
+    <a class="lib-card song-of-day" href="${escapeHtml(song.url)}" target="_blank" rel="noopener">
+      <div class="lib-icon" style="background:linear-gradient(135deg, ${song.c1}, ${song.c2})">${song.icon}</div>
+      <div class="lib-title">${escapeHtml(song.title)}</div>
+    </a>
+    ` : ''}
 
     <div class="lib-section-title">Accesos rápidos</div>
     <div class="lib-grid" id="libQuickGrid"></div>
@@ -1179,12 +1203,54 @@ async function renderLibrary(){
   renderLibraryItems();
 }
 
+// Resumen semanal (Nivel 19): solo visible los domingos, arriba del
+// checklist del día — no hace falta trackear "ya se mostró esta semana",
+// simplemente aparece cada vez que se mira la pestaña domingo. 100% local
+// (reusa el historial de racha y de caminatas ya guardados), nada nuevo
+// que sincronizar.
+function renderWeeklySummary(){
+  const now = new Date();
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ORDER.indexOf(todayKey(now, ORDER)));
+  const history = new Set(loadRoutineHistory());
+  const today = isoDate(now);
+  const { total, done } = countDone(todayKey(now, ORDER));
+  const todayCompleted = total > 0 && done === total;
+
+  let completeDays = 0;
+  for (let i = 0; i < 7; i++){
+    const iso = isoDate(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i));
+    if (history.has(iso) || (iso === today && todayCompleted)) completeDays++;
+  }
+
+  let weekWalks = [];
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    weekWalks = raw ? JSON.parse(raw) : [];
+  }catch(e){ weekWalks = []; }
+  const weekKm = walkDistanceThisWeek(weekWalks, now);
+  const weekWalksCount = weekWalks.filter(s => typeof s.timestamp === 'number' && s.timestamp >= monday.getTime()).length;
+
+  const el = document.createElement('div');
+  el.className = 'weekly-summary';
+  el.innerHTML = `
+    <div class="weekly-summary-title">📅 Resumen de la semana</div>
+    <div class="weekly-summary-grid">
+      <div class="weekly-summary-item"><div class="label">Rutina completa</div><div class="value">${completeDays}/7 días</div></div>
+      <div class="weekly-summary-item"><div class="label">Caminata</div><div class="value">${weekKm.toFixed(2)} km</div></div>
+      <div class="weekly-summary-item"><div class="label">Caminatas</div><div class="value">${weekWalksCount}</div></div>
+    </div>
+  `;
+  return el;
+}
+
 function renderDay(){
   const dayKey = current;
   const day = routine[dayKey];
   const wrap = document.getElementById('dayContent');
   wrap.innerHTML = '';
   const [c1, c2] = DAY_COLORS[dayKey];
+
+  if (dayKey === 'domingo') wrap.appendChild(renderWeeklySummary());
 
   const banner = document.createElement('div');
   banner.className = 'day-banner';
@@ -1242,7 +1308,11 @@ function renderDay(){
         <button type="button" class="item-del-btn" aria-label="Borrar ${escapeHtml(item.t)}">✕</button>`;
       row.querySelector('.item-checkbox').addEventListener('click', (ev) => {
         const checked = ev.target.checked;
-        if (checked) { state[dayKey].add(item.id); burstConfetti(ev.clientX, ev.clientY); }
+        if (checked) {
+          state[dayKey].add(item.id);
+          burstConfetti(ev.clientX, ev.clientY);
+          if (block.items.every(i => state[dayKey].has(i.id))) celebrateBlockComplete(block.title);
+        }
         else { state[dayKey].delete(item.id); }
         saveCheckState();
         renderDay();
@@ -1349,6 +1419,33 @@ function spawnFallingConfetti(){
 }
 spawnFallingConfetti();
 
+// ---- Celebración de bloque completo (Nivel 19) ----
+// Además del confetti chico de cada tarea: una ráfaga más grande repartida
+// por el ancho de la pantalla, un banner breve y un anuncio para lectores
+// de pantalla. Dispara solo cuando se tilda el último ítem del bloque (ver
+// el handler de checkbox en renderDay()), nunca al desmarcar ni en un render.
+let blockCelebrationTimeout = null;
+function celebrateBlockComplete(blockTitle){
+  const w = window.innerWidth;
+  [0.2, 0.4, 0.6, 0.8].forEach((frac, i) => {
+    setTimeout(() => burstConfetti(w * frac, 80), i * 80);
+  });
+
+  let banner = document.getElementById('blockCelebration');
+  if (!banner){
+    banner = document.createElement('div');
+    banner.id = 'blockCelebration';
+    banner.setAttribute('role', 'status');
+    document.body.appendChild(banner);
+  }
+  banner.textContent = `🎉 ¡${blockTitle} completa! 🎉`;
+  banner.classList.add('visible');
+  clearTimeout(blockCelebrationTimeout);
+  blockCelebrationTimeout = setTimeout(() => banner.classList.remove('visible'), 3000);
+
+  announce(`¡Bloque ${blockTitle} completo!`);
+}
+
 const CONFETTI_EMOJIS = ['🎉','🎶','✨','🔥'];
 function burstConfetti(x, y){
   for (let i=0; i<10; i++){
@@ -1433,6 +1530,50 @@ if (importBtn && importFile){
     ev.target.value = '';
   };
 }
+
+// ---- Sugerencia de vestimenta según el clima (Nivel 19) ----
+// Open-Meteo: gratis, sin API key, sin tarjeta (mismo criterio "gratis"
+// que Leaflet/OSM en Caminata). Ubicación fija (Viedma, DEFAULT_CENTER) —
+// no se pide geolocalización nueva para esto. Se cachea una vez por día
+// calendario (mismo criterio isoDate() que el resto de la app, no un
+// timestamp relativo) para no repetir el fetch en cada render. Si falla
+// (sin conexión, API caída), la card simplemente no aparece — no es
+// información crítica, no bloquea el resto de la app.
+const WEATHER_STORAGE_KEY = 'veronica-weather-cache';
+
+async function updateWeatherCard(){
+  const el = document.getElementById('weatherCard');
+  if (!el) return;
+  const today = isoDate(new Date());
+
+  try{
+    const raw = localStorage.getItem(WEATHER_STORAGE_KEY);
+    const cached = raw ? JSON.parse(raw) : null;
+    if (cached && cached.date === today){
+      el.hidden = false;
+      el.textContent = `🌤️ ${cached.tempC}°C — ${cached.suggestion}`;
+      return;
+    }
+  }catch(e){ /* caché corrupto, seguimos al fetch */ }
+
+  try{
+    const [lat, lng] = DEFAULT_CENTER;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,precipitation,wind_speed_10m`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Respuesta ' + response.status);
+    const data = await response.json();
+    const tempC = Math.round(data.current.temperature_2m);
+    const suggestion = clothingSuggestion(data.current.temperature_2m, data.current.precipitation, data.current.wind_speed_10m);
+    try{ localStorage.setItem(WEATHER_STORAGE_KEY, JSON.stringify({ date: today, tempC, suggestion })); }
+    catch(e){ /* cachear es best-effort, no crítico */ }
+    el.hidden = false;
+    el.textContent = `🌤️ ${tempC}°C — ${suggestion}`;
+  }catch(e){
+    console.error('No se pudo obtener el clima', e);
+    el.hidden = true;
+  }
+}
+updateWeatherCard();
 
 // ---- PWA: registrar service worker (instalable + funciona offline) ----
 if ('serviceWorker' in navigator){

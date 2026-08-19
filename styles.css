@@ -196,6 +196,19 @@ h1 span{
 }
 .streak-forgive-hint[hidden]{ display:none; }
 
+.weather-card{
+  display:inline-flex; align-items:center; gap:6px;
+  margin-top:8px;
+  padding:6px 14px;
+  border-radius:999px;
+  font-size:12.5px;
+  font-weight:700;
+  color:var(--text);
+  background:var(--card);
+  box-shadow:0 4px 14px -10px rgba(74,59,71,0.25);
+}
+.weather-card[hidden]{ display:none; }
+
 .tabs{
   display:flex;
   gap:6px;
@@ -623,6 +636,31 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
 }
 .walk-stats-note{ font-size:11px; color:var(--text-soft); margin:0 4px 14px; }
 
+/* Resumen semanal (Nivel 19, solo domingo) */
+.weekly-summary{
+  background:var(--card-tint);
+  border-radius:20px;
+  padding:16px;
+  margin-bottom:16px;
+  box-shadow:var(--shadow);
+}
+.weekly-summary-title{
+  font-family:'Baloo 2', sans-serif; font-weight:800; font-size:15px;
+  color:var(--orange-deep); margin-bottom:10px;
+}
+.weekly-summary-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(90px, 1fr));
+  gap:10px;
+}
+.weekly-summary-item{
+  background:var(--card);
+  border-radius:14px;
+  padding:10px 12px;
+}
+.weekly-summary-item .label{ font-size:10.5px; font-weight:800; color:var(--text-soft); text-transform:uppercase; letter-spacing:0.4px; }
+.weekly-summary-item .value{ font-family:'Baloo 2', sans-serif; font-size:17px; font-weight:800; color:var(--ink); margin-top:2px; }
+
 /* Biblioteca */
 .tab.libtab{ background:#F1EBFF; color:var(--violet-deep); }
 .lib-banner{
@@ -665,6 +703,12 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
   font-size:17px; color:#fff;
 }
 .lib-card .lib-title{ font-size:13px; font-weight:800; color:var(--ink); line-height:1.25; }
+.song-of-day{
+  flex-direction:row; align-items:center;
+  margin-bottom:14px;
+}
+.song-of-day .lib-icon{ width:46px; height:46px; font-size:22px; flex:0 0 auto; }
+.song-of-day .lib-title{ font-size:15px; }
 
 .lib-form{
   background:var(--card);
@@ -761,5 +805,26 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
   transition:bottom .3s ease;
 }
 #saveErrorBanner.visible{ bottom:16px; }
+
+#blockCelebration{
+  position:fixed;
+  left:50%;
+  top:-80px;
+  transform:translateX(-50%);
+  max-width:calc(100% - 32px);
+  width:340px;
+  background:linear-gradient(120deg, var(--orange-deep), var(--gold), var(--pink));
+  color:#fff;
+  font-family:'Baloo 2', sans-serif;
+  font-size:16px;
+  font-weight:800;
+  text-align:center;
+  padding:14px 20px;
+  border-radius:18px;
+  box-shadow:0 12px 26px -10px rgba(0,0,0,0.4);
+  z-index:1000;
+  transition:top .3s ease;
+}
+#blockCelebration.visible{ top:16px; }
 
 @media (max-width:380px){ h1{font-size:26px;} }
