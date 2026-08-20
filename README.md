@@ -119,6 +119,14 @@ cloudflare/            Worker que manda los recordatorios push y el aviso de
   pestaña "🩸 Ciclo" (botón "Inicio del período" para el registro rápido,
   ✏️/✕ para editar/borrar cualquier entrada del historial). Nivel 21, dato
   sensible — 100% local, nunca se sincroniza al Worker.
+- **Nombre del header** ("Verónica"): se edita tocando el lápiz ✏️ junto
+  al nombre, arriba de todo. Se guarda en `localStorage` y viaja en
+  exportar/importar datos (Nivel 23).
+- **Frases motivacionales** de la celebración de bloque completo: se
+  agregan, editan y borran desde el pie de página ("✏️ Frases
+  motivacionales"), mismo patrón que Biblioteca/Cumpleaños. Arranca con
+  un banco de 34 frases curadas; si el banco queda vacío, la celebración
+  muestra un texto genérico de respaldo (Nivel 23).
 
 ## Tests automáticos
 
@@ -176,8 +184,9 @@ nunca fuera del dispositivo (este último, nunca bajo ninguna circunstancia
 
 Para no perder esos datos, usá los botones **⬇️ Exportar datos** / **⬆️
 Importar datos** al pie de la app: exportan/restauran un archivo `.json` con
-el checklist, el historial de caminatas, la biblioteca, los cumpleaños y el
-Calendario Menstrual.
+el checklist, el historial de caminatas, la biblioteca, los cumpleaños, el
+Calendario Menstrual, el nombre del header y el banco de frases
+motivacionales.
 
 ## Recordatorios push
 
@@ -430,3 +439,30 @@ El proyecto avanza por niveles definidos junto con el usuario:
   red hacia el Worker durante el flujo completo. Ver
   `docs/specs/2026-08-20-nivel21-calendario-menstrual.md` para el diseño
   completo.
+- **Nivel 22** — rediseño de interfaz de toda la app (7 pestañas de días +
+  Caminata/Biblioteca/Cumples/Ciclo), aprobado tras revisar mockups en un
+  canvas de diseño. Se mantiene la identidad temática (cuarteto/Euge
+  Quevedo, colores por día, tipografía y tokens existentes); cambia la
+  estructura: header compacto (franja fija de 60px con vinilo miniatura +
+  nombre + subtítulo + clima, en vez de la escena grande que se repetía
+  en las 11 pestañas) y navegación en 2 niveles (barra inferior fija con
+  las 5 secciones + selector de día, más chico, visible solo dentro de
+  Rutina). Corrige de paso 3 hallazgos de la revisión de código: contraste
+  WCAG faltante en el estado activo de la barra inferior, el botón
+  "Rutina" que siempre reseteaba al día de hoy en vez de recordar el
+  último día visto, y falta de un `<h1>` de nivel superior tras sacar la
+  escena del hero. Ver `docs/specs/2026-08-20-nivel22-rediseno-ui.md`
+  para el diseño completo.
+- **Nivel 23** — nombre editable y frases motivacionales. El nombre
+  "Verónica" del header deja de estar hardcodeado: quien instale la app
+  puede editarlo tocando el lápiz junto al nombre, se guarda en
+  `localStorage` y viaja en exportar/importar datos. Además, la
+  celebración de bloque completo (Nivel 19) deja de mostrar el texto
+  genérico "¡Mañana/Tarde/Noche completa!" y en su lugar muestra una
+  frase motivacional al azar de un banco curado (34 frases iniciales),
+  editable desde el pie de página con el mismo patrón de
+  agregar/editar/borrar ya usado en Biblioteca/Cumpleaños/Canción del
+  día/Ciclo. Si el banco queda vacío, la celebración cae a un texto
+  genérico de respaldo. Ver
+  `docs/specs/2026-08-20-nivel23-nombre-editable-frases-motivacionales.md`
+  para el diseño completo.

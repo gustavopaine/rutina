@@ -26,6 +26,7 @@ const {
   predictFertileWindow,
   cyclePhase,
   periodLengthDays,
+  pickRandomPhrase,
 } = require('../logic.js');
 
 function toBase64Url(str){
@@ -454,4 +455,38 @@ test('periodLengthDays: entrada cerrada da la duración inclusive (endDate-start
 
 test('periodLengthDays: entrada abierta (sin endDate) da null', () => {
   assert.equal(periodLengthDays(CYCLE_D_OPEN), null);
+});
+
+// ---- Nivel 23: frases motivacionales ----
+const PHRASES = [
+  { id: 'a', text: 'Frase A' },
+  { id: 'b', text: 'Frase B' },
+  { id: 'c', text: 'Frase C' },
+];
+
+test('pickRandomPhrase: lista vacía o undefined da null', () => {
+  assert.equal(pickRandomPhrase([]), null);
+  assert.equal(pickRandomPhrase(undefined), null);
+});
+
+test('pickRandomPhrase: randomFn en 0 da la primera frase', () => {
+  assert.deepEqual(pickRandomPhrase(PHRASES, () => 0), PHRASES[0]);
+});
+
+test('pickRandomPhrase: randomFn cerca de 1 da la última frase (no se pasa del índice)', () => {
+  assert.deepEqual(pickRandomPhrase(PHRASES, () => 0.999), PHRASES[2]);
+});
+
+test('pickRandomPhrase: randomFn intermedio elige el índice correcto', () => {
+  // 0.5 * 3 = 1.5 -> Math.floor = 1
+  assert.deepEqual(pickRandomPhrase(PHRASES, () => 0.5), PHRASES[1]);
+});
+
+test('pickRandomPhrase: randomFn devolviendo exactamente 1 no se pasa del último índice', () => {
+  assert.deepEqual(pickRandomPhrase(PHRASES, () => 1), PHRASES[2]);
+});
+
+test('pickRandomPhrase: sin randomFn explícito usa Math.random por defecto (devuelve algo de la lista)', () => {
+  const picked = pickRandomPhrase(PHRASES);
+  assert.ok(PHRASES.includes(picked));
 });

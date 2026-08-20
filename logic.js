@@ -344,6 +344,18 @@
     return 'otro';
   }
 
+  // Frase al azar del banco de motivación (Nivel 23) — a diferencia de
+  // songOfTheDay() (determinístico por fecha, a propósito), acá cada
+  // celebración de bloque sortea una frase distinta. randomFn inyectable
+  // (default Math.random) para que el test controle el resultado sin
+  // mockear el global — mismo criterio que el resto de logic.js recibe
+  // sus variables por parámetro en vez de leerlas del entorno.
+  function pickRandomPhrase(phrases, randomFn = Math.random){
+    if (!phrases || !phrases.length) return null;
+    const idx = Math.min(Math.floor(randomFn() * phrases.length), phrases.length - 1);
+    return phrases[idx];
+  }
+
   function geolocationErrorMessage(err){
     if (err.code === err.PERMISSION_DENIED){
       return 'No diste permiso de ubicación. Revisá los permisos de este sitio en la configuración del navegador o del celular y volvé a intentar.';
@@ -357,7 +369,7 @@
     return 'No pude acceder a la ubicación. Revisá los permisos del navegador.';
   }
 
-  const api = { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays, songOfTheDay, clothingSuggestion, mondayOfWeek, averagePeriodLengthDays, averageCycleLengthDays, currentCycleDay, predictNextPeriod, predictFertileWindow, cyclePhase, periodLengthDays };
+  const api = { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays, songOfTheDay, clothingSuggestion, mondayOfWeek, averagePeriodLengthDays, averageCycleLengthDays, currentCycleDay, predictNextPeriod, predictFertileWindow, cyclePhase, periodLengthDays, pickRandomPhrase };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RutinaLogic = api;
 

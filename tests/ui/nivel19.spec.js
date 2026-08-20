@@ -15,7 +15,11 @@ test.describe('celebración de bloque completo', () => {
     for (let i = 0; i < total; i++) await checkboxes.nth(i).click();
 
     await expect(page.locator('#blockCelebration')).toHaveClass(/visible/);
-    await expect(page.locator('#blockCelebration')).toContainText('completa');
+    // Nivel 23: el banner ya no muestra texto genérico ("... completa") sino
+    // una frase motivacional al azar del banco.
+    const phrases = await page.evaluate(() => JSON.parse(localStorage.getItem('veronica-motivational-phrases')));
+    const bannerText = await page.locator('#blockCelebration').textContent();
+    expect(phrases.some((p) => bannerText.includes(p.text))).toBe(true);
   });
 
   test('tildar un ítem que no completa el bloque no dispara la celebración', async ({ page }) => {

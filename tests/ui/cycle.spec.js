@@ -52,7 +52,7 @@ test('cerrar el período en curso muestra la duración derivada y libera "Inicio
   await page.locator('#cycleEndInput').fill(addDaysToIso(startVal, 4)); // 5 días de período
   await page.getByRole('button', { name: '💾 Guardar cambios' }).click();
 
-  await expect(page.locator('.lib-item', { hasText: '· 5 días' })).toBeVisible();
+  await expect(page.locator('#cycleItemsList .lib-item', { hasText: '· 5 días' })).toBeVisible();
   await expect(page.getByRole('button', { name: '🩸 Inicio del período' })).toBeVisible();
   // Con un solo ciclo cargado (1 cerrado, 0 gaps entre inicios): la duración
   // de período ya es un promedio real, pero la de ciclo todavía no tiene
@@ -123,7 +123,7 @@ test('editar una entrada cerrada para borrarle la fecha de fin no reabre un segu
   // Editar la entrada VIEJA (ya cerrada, no la que se acaba de abrir hoy) y
   // borrarle la fecha de fin — sin el guard, esto reabriría un segundo
   // período mientras ya hay uno en curso.
-  const oldRow = page.locator('.lib-item').filter({ hasNotText: 'en curso' });
+  const oldRow = page.locator('#cycleItemsList .lib-item').filter({ hasNotText: 'en curso' });
   await oldRow.locator('.lib-edit').click();
   await page.locator('#cycleEndInput').fill('');
 
@@ -155,7 +155,7 @@ test('el flujo completo de Inicio del período -> editar -> borrar nunca hace ni
   await page.getByRole('button', { name: '💾 Guardar cambios' }).click();
 
   page.once('dialog', (dialog) => dialog.accept());
-  await page.locator('.lib-item').first().locator('.lib-del').click();
+  await page.locator('#cycleItemsList .lib-item').first().locator('.lib-del').click();
   await expect(page.getByText('Registrá tu primer período')).toBeVisible();
 
   expect(workerRequests).toEqual([]);

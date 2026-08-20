@@ -142,7 +142,10 @@ test.describe('hito de racha', () => {
       window.celebrateStreakMilestone(5);
     });
     // Sigue mostrando la celebración de bloque mientras esa sigue vigente...
-    await expect(page.locator('#blockCelebration')).toContainText('Mañana');
+    // (Nivel 23: el banner de bloque ya no incluye el nombre del bloque, solo
+    // una frase — se distingue del banner de hito por no tener "días seguidos".)
+    await expect(page.locator('#blockCelebration')).toContainText('🎉');
+    await expect(page.locator('#blockCelebration')).not.toContainText('días seguidos');
     // ...y después la reemplaza por la del hito, sin perderla.
     await expect(page.locator('#blockCelebration')).toContainText('5 días seguidos', { timeout: 5000 });
   });

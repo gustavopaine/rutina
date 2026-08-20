@@ -61,7 +61,11 @@
   <header class="app-header">
     <div class="vinyl-mini" aria-hidden="true"></div>
     <div class="app-header-id">
-      <h1 class="app-header-name">Verónica</h1>
+      <div class="app-header-name-row" id="userNameRow">
+        <h1 id="userNameDisplay" class="app-header-name">Verónica</h1>
+        <button type="button" id="userNameEditBtn" class="app-header-name-edit" aria-label="Editar nombre">✏️</button>
+      </div>
+      <input type="text" id="userNameInput" class="app-header-name-input" hidden aria-label="Nombre" maxlength="40">
       <div class="app-header-sub">Cuarteto a pleno · Euge Quevedo</div>
     </div>
     <div id="weatherCard" class="weather-card" hidden></div>
@@ -98,6 +102,7 @@
       </select>
       <span>de anticipación</span>
     </div>
+    <div id="phrasesSection"></div>
   </footer>
 </div>
 

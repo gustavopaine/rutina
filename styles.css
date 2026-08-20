@@ -102,13 +102,43 @@ body{
 }
 @keyframes spinVinyl{ to{ transform:rotate(360deg); } }
 .app-header-id{ flex:1; min-width:0; }
+.app-header-name-row{ display:flex; align-items:center; gap:4px; min-width:0; }
+.app-header-name-row[hidden]{ display:none; }
 .app-header-name{
   margin:0; /* h1 (revisión de código: la app no tenía ningún heading de nivel superior) trae margen de agente por defecto */
   font-family:'Baloo 2', sans-serif;
   font-weight:800;
   font-size:17px;
   line-height:1.15;
+  min-width:0;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
+/* Nivel 23: nombre editable — ícono chico junto al nombre, mismo
+   criterio de "✏️ = editar" que ya usa el resto de la app. */
+.app-header-name-edit{
+  flex:0 0 auto;
+  width:22px; height:22px;
+  border:none; border-radius:8px;
+  background:transparent;
+  font-size:12px;
+  cursor:pointer;
+  opacity:0.6;
+}
+.app-header-name-edit:hover, .app-header-name-edit:focus-visible{ opacity:1; }
+.app-header-name-edit:focus-visible{ outline:2px solid var(--orange-deep); outline-offset:1px; }
+.app-header-name-input{
+  width:100%;
+  font-family:'Baloo 2', sans-serif;
+  font-weight:800;
+  font-size:17px;
+  line-height:1.15;
+  padding:2px 6px;
+  border-radius:8px;
+  border:1.5px solid var(--orange);
+  color:var(--ink);
+  background:#fff;
+}
+.app-header-name-input:focus{ outline:none; border-color:var(--orange-deep); }
 .app-header-sub{
   font-size:10px;
   font-weight:700;

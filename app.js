@@ -163,7 +163,7 @@ const DEFAULT_DATA = {
 };
 
 const ORDER = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
-const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays, songOfTheDay, clothingSuggestion, mondayOfWeek, averagePeriodLengthDays, averageCycleLengthDays, currentCycleDay, predictNextPeriod, predictFertileWindow, cyclePhase, periodLengthDays } = window.RutinaLogic;
+const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays, songOfTheDay, clothingSuggestion, mondayOfWeek, averagePeriodLengthDays, averageCycleLengthDays, currentCycleDay, predictNextPeriod, predictFertileWindow, cyclePhase, periodLengthDays, pickRandomPhrase } = window.RutinaLogic;
 
 // ---- Anuncios puntuales para lectores de pantalla (no releer todo el panel) ----
 function announce(message){
@@ -186,6 +186,68 @@ function showSaveError(message){
   clearTimeout(saveErrorTimeout);
   saveErrorTimeout = setTimeout(() => banner.classList.remove('visible'), 6000);
 }
+// ---- Nombre editable del header (Nivel 23) ----
+// "Verónica" era hardcodeada en index.html — quien instale la app puede
+// ahora poner el nombre que quiera, guardado en localStorage. No renombra
+// el cumpleaños semilla de "Verónica" en DEFAULT_BIRTHDAYS (dato
+// independiente, editable a mano desde Cumples si hace falta), ni toca
+// <title>/manifest.json (archivos estáticos, fuera de alcance).
+const USER_NAME_STORAGE_KEY = 'veronica-user-name';
+const DEFAULT_USER_NAME = 'Verónica';
+let userName = DEFAULT_USER_NAME;
+
+async function loadUserName(){
+  try{
+    const raw = localStorage.getItem(USER_NAME_STORAGE_KEY);
+    userName = raw && raw.trim() ? raw : DEFAULT_USER_NAME;
+  }catch(e){ userName = DEFAULT_USER_NAME; }
+}
+async function saveUserName(){
+  try{ localStorage.setItem(USER_NAME_STORAGE_KEY, userName); }
+  catch(e){ console.error('No se pudo guardar el nombre', e); showSaveError('No se pudo guardar el nombre.'); }
+}
+
+function renderUserName(){
+  const display = document.getElementById('userNameDisplay');
+  if (display) display.textContent = userName;
+}
+
+function startEditUserName(){
+  document.getElementById('userNameRow').hidden = true;
+  const input = document.getElementById('userNameInput');
+  input.value = userName;
+  input.hidden = false;
+  input.focus();
+  input.select();
+}
+
+async function commitEditUserName(){
+  const input = document.getElementById('userNameInput');
+  if (input.hidden) return; // ya se guardó/canceló (evita doble commit blur+Enter)
+  const value = input.value.trim();
+  input.hidden = true;
+  document.getElementById('userNameRow').hidden = false;
+  document.getElementById('userNameEditBtn').focus();
+  if (!value) return; // nombre vacío: no se guarda, se mantiene el anterior
+  userName = value;
+  renderUserName();
+  await saveUserName();
+}
+
+function cancelEditUserName(){
+  const input = document.getElementById('userNameInput');
+  input.hidden = true;
+  document.getElementById('userNameRow').hidden = false;
+  document.getElementById('userNameEditBtn').focus();
+}
+
+document.getElementById('userNameEditBtn').onclick = startEditUserName;
+document.getElementById('userNameInput').onblur = commitEditUserName;
+document.getElementById('userNameInput').addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter'){ ev.preventDefault(); document.getElementById('userNameInput').blur(); }
+  else if (ev.key === 'Escape'){ ev.preventDefault(); cancelEditUserName(); }
+});
+
 const CHECK_STORAGE_KEY = 'veronica-checklist-state';
 const CHECK_LAST_ACTIVE_KEY = 'veronica-checklist-last-active';
 const STREAK_STORAGE_KEY = 'veronica-routine-history';
@@ -1833,6 +1895,143 @@ function spawnFallingConfetti(){
 }
 spawnFallingConfetti();
 
+// ---- Frases motivacionales (Nivel 23) ----
+// Banco editable de frases que celebrateBlockComplete() (más abajo) sortea
+// al completar un bloque, en vez del texto genérico fijo que tenía antes.
+// Mismo patrón de agregar/editar/borrar que Biblioteca/Cumpleaños, pero sin
+// link (un solo campo de texto) — filas sin-link como el historial de
+// Ciclo (Nivel 21), no renderCrudItemsList() (esa exige item.url).
+const MOTIVATIONAL_PHRASES_SEED = [
+  "Un paso hoy vale más que diez promesas para mañana.",
+  "La constancia le gana al talento cuando el talento no es constante.",
+  "No tenés que ser perfecta, tenés que ser vos, todos los días un poco más.",
+  "Cada hábito chico de hoy es la persona que vas a ser mañana.",
+  "El descanso también es parte del progreso, no su opuesto.",
+  "Lo que se repite, se vuelve fuerte — elegí bien qué repetís.",
+  "No hace falta motivación todos los días, alcanza con la costumbre.",
+  "Sé amable con vos misma: nadie construye nada bueno a los gritos.",
+  "El orden de afuera ayuda a que la cabeza descanse un poco.",
+  "Hoy alcanza con hacer lo que podés, no lo que idealizás.",
+  "Cada tarea tildada es una prueba de que sos capaz de sostener algo.",
+  "La calma no es no tener nada que hacer, es hacer las cosas una por vez.",
+  "Nadie ve todos los días que elegiste seguir — pero cuentan igual.",
+  "El cuerpo también aprende: moverte hoy le enseña a mañana.",
+  "No compares tu día de hoy con tu mejor día — comparalo con ayer.",
+  "Terminar lo chico también es terminar algo.",
+  "La disciplina es quererte lo suficiente como para no abandonarte.",
+  "Un día sin todo tildado sigue siendo un día que intentaste.",
+  "Lo simple sostenido en el tiempo vale más que lo grande hecho una vez.",
+  "Agradecé lo que ya lograste antes de mirar lo que falta.",
+  "La rutina no te achica el mundo, te da un lugar firme para pararte.",
+  "Cuidarte a vos también es cuidar a los que te rodean.",
+  "No es necesario sentir ganas para empezar — las ganas a veces llegan después.",
+  "Lo que hoy parece rutina, en un año va a ser una versión mejor de vos.",
+  "Cada bloque completo es una decisión de no dejarte para después.",
+  "El progreso real no se nota de un día para el otro, se nota mirando para atrás.",
+  "Está bien pedir ayuda — sostener todo sola no te hace más fuerte.",
+  "Hoy hiciste lo que pudiste con lo que tenías: eso ya es bastante.",
+  "La paciencia con una misma es la base de cualquier cambio de verdad.",
+  "Un mal día no borra todos los días buenos que vinieron antes.",
+  "Elegí hoy de nuevo lo que ya elegiste ayer — ahí está la fuerza.",
+  "No se trata de nunca cansarte, se trata de volver a intentarlo.",
+  "Cada tarea de hoy es un mensaje para la vos de dentro de un año.",
+  "Ir despacio también es ir — no hace falta correr para avanzar.",
+];
+const PHRASES_STORAGE_KEY = 'veronica-motivational-phrases';
+let motivationalPhrases = [];
+let editingPhraseId = null;
+
+async function loadMotivationalPhrases(){
+  try{
+    const raw = localStorage.getItem(PHRASES_STORAGE_KEY);
+    if (raw){ motivationalPhrases = JSON.parse(raw); return; }
+  }catch(e){ /* cae a la semilla de abajo */ }
+  motivationalPhrases = MOTIVATIONAL_PHRASES_SEED.map((text, i) => ({ id: 'seed-' + i, text }));
+  await saveMotivationalPhrases();
+}
+async function saveMotivationalPhrases(){
+  try{ localStorage.setItem(PHRASES_STORAGE_KEY, JSON.stringify(motivationalPhrases)); }
+  catch(e){ console.error('No se pudo guardar el banco de frases', e); showSaveError('No se pudo guardar el cambio en las frases motivacionales.'); }
+}
+
+function editPhraseEntry(id){
+  editingPhraseId = id;
+  renderMotivationalPhrasesSection();
+}
+async function deletePhraseEntry(id){
+  motivationalPhrases = motivationalPhrases.filter(p => p.id !== id);
+  if (editingPhraseId === id) editingPhraseId = null;
+  await saveMotivationalPhrases();
+  renderMotivationalPhrasesSection();
+}
+async function submitPhraseForm(){
+  const input = document.getElementById('phraseTextInput');
+  const text = input.value.trim();
+  if (!text){ alert('Completá el texto de la frase.'); return; }
+  if (editingPhraseId){
+    const entry = motivationalPhrases.find(p => p.id === editingPhraseId);
+    if (entry) entry.text = text;
+    editingPhraseId = null;
+  } else {
+    motivationalPhrases.push({ id: Date.now().toString(), text });
+  }
+  await saveMotivationalPhrases();
+  renderMotivationalPhrasesSection();
+}
+
+function renderPhrasesList(){
+  const el = document.getElementById('phraseItemsList');
+  if (!el) return;
+  if (!motivationalPhrases.length){
+    el.innerHTML = '<div class="lib-empty">Todavía no hay frases en el banco 💬</div>';
+    return;
+  }
+  el.innerHTML = '';
+  [...motivationalPhrases].reverse().forEach(entry => {
+    const row = document.createElement('div');
+    row.className = 'lib-item';
+    row.innerHTML = `
+      <div class="lib-item-info-wrap">
+        <div class="lib-item-icon">💬</div>
+        <div class="lib-item-info">
+          <div class="lib-item-title">${escapeHtml(entry.text)}</div>
+        </div>
+      </div>
+      <button class="lib-edit" aria-label="Editar frase">✏️</button>
+      <button class="lib-del" aria-label="Borrar frase">✕</button>
+    `;
+    row.querySelector('.lib-edit').onclick = () => editPhraseEntry(entry.id);
+    row.querySelector('.lib-del').onclick = async () => {
+      if (!confirm('¿Borrar esta frase del banco?')) return;
+      await deletePhraseEntry(entry.id);
+    };
+    el.appendChild(row);
+  });
+}
+
+async function renderMotivationalPhrasesSection(){
+  await loadMotivationalPhrases();
+  const wrap = document.getElementById('phrasesSection');
+  if (!wrap) return;
+  wrap.innerHTML = `
+    <div class="lib-section-title">${editingPhraseId ? 'Editar frase' : '✏️ Frases motivacionales'}</div>
+    <div class="lib-form">
+      <label for="phraseTextInput">Texto</label>
+      <input type="text" id="phraseTextInput" placeholder="Una frase motivacional o de crecimiento personal">
+      <button class="lib-add-btn" id="phraseFormSubmit">${editingPhraseId ? '💾 Guardar cambios' : '+ Agregar frase'}</button>
+      ${editingPhraseId ? '<button class="bday-cancel-btn" id="phraseFormCancel" type="button">Cancelar edición</button>' : ''}
+    </div>
+    <div id="phraseItemsList"></div>
+  `;
+  document.getElementById('phraseFormSubmit').onclick = submitPhraseForm;
+  if (editingPhraseId){
+    document.getElementById('phraseFormCancel').onclick = () => { editingPhraseId = null; renderMotivationalPhrasesSection(); };
+    const entry = motivationalPhrases.find(p => p.id === editingPhraseId);
+    if (entry) document.getElementById('phraseTextInput').value = entry.text;
+  }
+  renderPhrasesList();
+}
+
 // ---- Celebración de bloque completo (Nivel 19) ----
 // Además del confetti chico de cada tarea: una ráfaga más grande repartida
 // por el ancho de la pantalla, un banner breve y un anuncio para lectores
@@ -1865,8 +2064,20 @@ function showCelebrationBanner(text, announceText){
   announce(announceText);
 }
 
+// Nivel 23: el texto genérico fijo ("¡Mañana completa!") se reemplaza por
+// una frase motivacional al azar del banco editable — el banner ya no
+// menciona qué bloque se completó (eso ya se ve en la barra de progreso
+// de la pantalla), pero el announce() para lectores de pantalla sí lo
+// sigue mencionando, porque esa audiencia no tiene la barra de progreso
+// como referencia visual.
 function celebrateBlockComplete(blockTitle){
-  showCelebrationBanner(`🎉 ¡${blockTitle} completa! 🎉`, `¡Bloque ${blockTitle} completo!`);
+  const phrase = pickRandomPhrase(motivationalPhrases);
+  // Comillas angulares en vez de rectas: si la frase en sí cita algo entre
+  // comillas rectas (común en dichos en español), evita el choque visual
+  // de comillas anidadas idénticas.
+  const bannerText = phrase ? `🎉 «${phrase.text}» 🎉` : '🎉 ¡Bloque completo! 🎉';
+  const announceText = phrase ? `¡Bloque ${blockTitle} completo! ${phrase.text}` : `¡Bloque ${blockTitle} completo!`;
+  showCelebrationBanner(bannerText, announceText);
 }
 
 // ---- Hito de racha (Nivel 20) ----
@@ -1985,6 +2196,8 @@ function exportData(){
     noticeDays: localStorage.getItem(NOTICE_DAYS_STORAGE_KEY),
     streakMilestone: localStorage.getItem(STREAK_MILESTONE_KEY),
     cycleHistory: localStorage.getItem(CYCLE_STORAGE_KEY),
+    userName: localStorage.getItem(USER_NAME_STORAGE_KEY),
+    motivationalPhrases: localStorage.getItem(PHRASES_STORAGE_KEY),
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -2014,6 +2227,8 @@ function importData(file){
       if (payload.noticeDays) localStorage.setItem(NOTICE_DAYS_STORAGE_KEY, payload.noticeDays);
       if (payload.streakMilestone) localStorage.setItem(STREAK_MILESTONE_KEY, payload.streakMilestone);
       if (payload.cycleHistory) localStorage.setItem(CYCLE_STORAGE_KEY, payload.cycleHistory);
+      if (payload.userName) localStorage.setItem(USER_NAME_STORAGE_KEY, payload.userName);
+      if (payload.motivationalPhrases) localStorage.setItem(PHRASES_STORAGE_KEY, payload.motivationalPhrases);
       alert('Datos importados correctamente. La página se va a recargar.');
       location.reload();
     }catch(e){
@@ -2080,6 +2295,8 @@ async function updateWeatherCard(){
   }
 }
 updateWeatherCard();
+loadUserName().then(renderUserName);
+renderMotivationalPhrasesSection();
 
 // ---- PWA: registrar service worker (instalable + funciona offline) ----
 if ('serviceWorker' in navigator){
