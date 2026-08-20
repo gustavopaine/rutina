@@ -1944,6 +1944,13 @@ const MOTIVATIONAL_PHRASES_SEED = [
 const PHRASES_STORAGE_KEY = 'veronica-motivational-phrases';
 let motivationalPhrases = [];
 let editingPhraseId = null;
+// El banco de frases solo se ve como celebración de bloque (Nivel 23.1): la
+// edición vive colapsada por defecto en el pie, para no ocupar espacio
+// visible en las pestañas del día a día. phrasesDetailsOpen recuerda el
+// estado abierto/cerrado entre renders (cada uno reconstruye el <details>
+// desde cero, así que sin esto se cerraría solo cada vez que se
+// agrega/edita/borra una frase).
+let phrasesDetailsOpen = false;
 
 async function loadMotivationalPhrases(){
   try{
@@ -2018,15 +2025,19 @@ async function renderMotivationalPhrasesSection(){
   const wrap = document.getElementById('phrasesSection');
   if (!wrap) return;
   wrap.innerHTML = `
-    <div class="lib-section-title">${editingPhraseId ? 'Editar frase' : '✏️ Frases motivacionales'}</div>
-    <div class="lib-form">
-      <label for="phraseTextInput">Texto</label>
-      <input type="text" id="phraseTextInput" placeholder="Una frase motivacional o de crecimiento personal">
-      <button class="lib-add-btn" id="phraseFormSubmit">${editingPhraseId ? '💾 Guardar cambios' : '+ Agregar frase'}</button>
-      ${editingPhraseId ? '<button class="bday-cancel-btn" id="phraseFormCancel" type="button">Cancelar edición</button>' : ''}
-    </div>
-    <div id="phraseItemsList"></div>
+    <details id="phrasesDetails" class="phrases-details" ${phrasesDetailsOpen ? 'open' : ''}>
+      <summary>⚙️ Editar banco de frases motivacionales</summary>
+      <div class="lib-form">
+        <label for="phraseTextInput">Texto</label>
+        <input type="text" id="phraseTextInput" placeholder="Una frase motivacional o de crecimiento personal">
+        <button class="lib-add-btn" id="phraseFormSubmit">${editingPhraseId ? '💾 Guardar cambios' : '+ Agregar frase'}</button>
+        ${editingPhraseId ? '<button class="bday-cancel-btn" id="phraseFormCancel" type="button">Cancelar edición</button>' : ''}
+      </div>
+      <div id="phraseItemsList"></div>
+    </details>
   `;
+  const details = document.getElementById('phrasesDetails');
+  details.addEventListener('toggle', () => { phrasesDetailsOpen = details.open; });
   document.getElementById('phraseFormSubmit').onclick = submitPhraseForm;
   if (editingPhraseId){
     document.getElementById('phraseFormCancel').onclick = () => { editingPhraseId = null; renderMotivationalPhrasesSection(); };

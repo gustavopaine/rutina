@@ -530,6 +530,23 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
   background:var(--card); color:var(--text);
 }
 
+/* Nivel 23.1: el banco de frases motivacionales solo se ve como la
+   celebración de bloque (ver app.js) — la edición queda colapsada acá,
+   cerrada por defecto, para no ocupar espacio visible en el pie de cada
+   pestaña del día a día. */
+.phrases-details{ margin-top:10px; text-align:left; }
+.phrases-details summary{
+  font-family:'Nunito', sans-serif;
+  font-size:11.5px; font-weight:700;
+  padding:8px 12px; border-radius:12px; border:1.5px solid #EEDDD0;
+  background:var(--card); color:var(--text-soft); cursor:pointer;
+  list-style:none; text-align:center;
+}
+.phrases-details summary::-webkit-details-marker{ display:none; }
+.phrases-details summary:hover{ color:var(--orange-deep); border-color:var(--orange); }
+.phrases-details summary:focus-visible{ outline:2.5px solid var(--orange-deep); outline-offset:2px; }
+.phrases-details[open] summary{ margin-bottom:10px; }
+
 /* Caminata */
 .walk-banner{
   border-radius:22px; padding:16px 20px; color:#fff;

@@ -58,6 +58,8 @@ test.describe('frases motivacionales', () => {
   });
 
   test('agregar, editar y borrar una frase propia', async ({ page }) => {
+    // Nivel 23.1: la edición vive colapsada por defecto — hay que abrirla.
+    await page.locator('#phrasesDetails summary').click();
     await page.locator('#phraseTextInput').fill('Frase de prueba nivel 23');
     await page.locator('#phraseFormSubmit').click();
     await expect(page.getByText('Frase de prueba nivel 23')).toBeVisible();
@@ -75,11 +77,14 @@ test.describe('frases motivacionales', () => {
   });
 
   test('los cambios en el banco persisten entre recargas', async ({ page }) => {
+    await page.locator('#phrasesDetails summary').click();
     await page.locator('#phraseTextInput').fill('Frase persistente');
     await page.locator('#phraseFormSubmit').click();
     await expect(page.getByText('Frase persistente')).toBeVisible();
 
     await reloadApp(page);
+    // El desplegable vuelve a arrancar cerrado en cada carga fresca.
+    await page.locator('#phrasesDetails summary').click();
     await expect(page.getByText('Frase persistente')).toBeVisible();
   });
 
@@ -99,6 +104,31 @@ test.describe('frases motivacionales', () => {
 
     await expect(page.locator('#blockCelebration')).toHaveClass(/visible/);
     await expect(page.locator('#blockCelebration')).toContainText('¡Bloque completo!');
+  });
+});
+
+test.describe('edición del banco de frases: colapsada, no ocupa espacio visible (Nivel 23.1)', () => {
+  test.beforeEach(async ({ page }) => {
+    await gotoApp(page);
+    await page.evaluate(() => localStorage.clear());
+    await reloadApp(page);
+  });
+
+  test('el listado y el formulario de frases no están visibles por defecto en Rutina', async ({ page }) => {
+    await expect(page.locator('#phraseItemsList')).toBeHidden();
+    await expect(page.locator('#phraseTextInput')).toBeHidden();
+  });
+
+  test('tampoco están visibles en otras pestañas (Biblioteca)', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Biblioteca' }).click();
+    await expect(page.locator('#phraseItemsList')).toBeHidden();
+    await expect(page.locator('#phraseTextInput')).toBeHidden();
+  });
+
+  test('tocar el resumen "Editar banco de frases" abre el listado y el formulario', async ({ page }) => {
+    await page.locator('#phrasesDetails summary').click();
+    await expect(page.locator('#phraseItemsList .lib-item').first()).toBeVisible();
+    await expect(page.locator('#phraseTextInput')).toBeVisible();
   });
 });
 
@@ -201,6 +231,9 @@ test.describe('exportar / importar incluye nombre y frases', () => {
 
     await page.waitForFunction(() => window.__appBooted === true, null, { timeout: 15000 });
     await expect(page.locator('#userNameDisplay')).toHaveText('Nombre Importado');
+    // Nivel 23.1: el listado de frases vive colapsado por defecto — abrirlo
+    // para poder verificar que la frase importada está ahí.
+    await page.locator('#phrasesDetails summary').click();
     await expect(page.getByText('Frase importada de prueba')).toBeVisible();
   });
 });
