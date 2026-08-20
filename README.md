@@ -7,13 +7,16 @@ rutina semanal de Verónica, con tema de cuarteto (Euge Quevedo). Incluye:
 
 - **Rutina semanal**: checklist por día (Mañana / Tarde / Noche), con progreso
   y una racha ("🔥 N días seguidos") de días completos consecutivos — con 1
-  perdón por semana calendario, así saltear un día puntual no la corta.
+  perdón por semana calendario, así saltear un día puntual no la corta. Al
+  cruzar un hito (5, 10, 30, 60 o 100 días) hay una celebración especial
+  (confetti grande + banner), 100% local.
 - **Cumpleaños**: lista con cuenta regresiva, editable desde la app.
 - **Caminata**: tracking GPS en vivo con mapa (Leaflet + OpenStreetMap), sin
   costo, con un panel de estadísticas (distancia total, esta semana, este
   mes, racha de días con caminata, mejor caminata).
 - **Biblioteca**: accesos rápidos de música + tus propios links, más una
-  "canción del día" fija (elegida por fecha, editable en `app.js`).
+  "canción del día" fija (elegida por fecha), editable desde la propia
+  pestaña — agregar/editar/borrar canciones de la rotación.
 - **Clima y vestimenta**: temperatura de hoy (Viedma) y una sugerencia de
   qué ropa llevar, en el header.
 - **Resumen semanal**: días de rutina completa, distancia y cantidad de
@@ -102,9 +105,11 @@ cloudflare/            Worker que manda los recordatorios push y el aviso de
   EDITABLES`, en la constante `DEFAULT_DATA` — esa es solo la "semilla"
   con la que arranca la app la primera vez; después de eso, los cambios
   hechos desde la app tienen prioridad y viven en `localStorage`.
-- **Ítems de Biblioteca** que agregaste vos: se editan y borran desde la
-  propia pestaña "🎵 Biblioteca". Los **accesos rápidos** fijos (Euge
-  Quevedo, etc.) se editan en la constante `QUICK_LINKS` en `app.js`.
+- **Ítems de Biblioteca** que agregaste vos, y la **rotación de "canción del
+  día"**: se editan y borran desde la propia pestaña "🎵 Biblioteca"
+  (Nivel 20 — antes la canción del día era fija, hardcodeada en `app.js`).
+  Los **accesos rápidos** fijos (Euge Quevedo, etc.) siguen fijos, se
+  editan en la constante `QUICK_LINKS` en `app.js`.
 
 ## Tests automáticos
 
@@ -390,3 +395,15 @@ El proyecto avanza por niveles definidos junto con el usuario:
   el manejo directo del navegador — ahora solo intercepta same-origin.
   Ver `docs/specs/2026-08-19-nivel19-celebracion-cancion-resumen-clima.md`
   para el diseño completo.
+- **Nivel 20** — hito de racha (confetti grande + banner + anuncio al
+  cruzar 5, 10, 30, 60 o 100 días seguidos), 100% local, mismo
+  tratamiento visual que la celebración de bloque de Nivel 19: sin push,
+  sin sincronizar nada al Worker (se descartó reabrir la privacidad de
+  Nivel 16 para esto, y con eso también quedó fuera de este nivel
+  resolver el presupuesto de Cron Triggers agotado desde Nivel 18, que
+  sigue en Deferred). Además, la canción del día pasa de estar
+  hardcodeada en `app.js` a ser editable desde la Biblioteca: mismo
+  patrón de agregar/editar/borrar que ya tenían los ítems de biblioteca,
+  con las canciones guardadas en `localStorage`. Ver
+  `docs/specs/2026-08-19-nivel20-hito-racha-cancion-editable.md` para el
+  diseño completo.

@@ -337,6 +337,20 @@ function countDone(dayKey){
   return { total, done };
 }
 
+// Hito de racha (Nivel 20): declarados acá (antes del primer renderDay() al
+// final del archivo) porque celebrateStreakMilestone() se llama de forma
+// síncrona desde renderStreakBadge() ya en el boot inicial — si estas
+// constantes vivieran más abajo (junto a celebrateStreakMilestone(), cerca de
+// celebrateBlockComplete()), estarían en temporal dead zone en ese primer
+// render y tirarían ReferenceError. streakCelebrationPending por el mismo
+// motivo: en un boot fresco #blockCelebration todavía no existe en el DOM,
+// así que celebrateStreakMilestone() puede llamar a show() inmediatamente
+// (sin demora) ya en ese primer render si el hito se detecta ahí mismo.
+const STREAK_MILESTONES = [5, 10, 30, 60, 100];
+const STREAK_MILESTONE_KEY = 'veronica-last-streak-milestone';
+let streakCelebrationPending = false;
+let blockCelebrationTimeout = null;
+
 function renderStreakBadge(){
   const el = document.getElementById('streakBadge');
   if (!el) return;
@@ -346,6 +360,7 @@ function renderStreakBadge(){
   const todayCompleted = total > 0 && done === total;
   const history = loadRoutineHistory().filter(d => d !== today);
   const streak = computeStreak(history, today, todayCompleted, STREAK_FORGIVE_PER_WEEK);
+  celebrateStreakMilestone(streak);
   const forgiveEl = document.getElementById('streakForgiveHint');
   if (streak > 0){
     el.hidden = false;
@@ -1059,18 +1074,119 @@ const QUICK_LINKS = [
 
 // Canción del día (Nivel 19): una sugerencia fija por día, elegida por
 // fecha (mismo criterio determinístico que el resto de la app, nada al
-// azar). Arranca con las mismas URLs ya verificadas de QUICK_LINKS de
-// arriba, en vez de temas puntuales inventados que no se puede confirmar
-// que existan o funcionen — reemplazá estas entradas por canciones
-// específicas cuando quieras, mismo patrón editable que el resto de los
-// datos de la app.
-const DAILY_SONGS = [
+// azar). Semilla = mismas URLs ya verificadas de QUICK_LINKS de arriba,
+// en vez de temas puntuales inventados que no se puede confirmar que
+// existan o funcionen. Desde Nivel 20 la rotación es editable desde la
+// UI (ver loadDailySongs()/saveDailySongs() y el form en renderLibrary());
+// esta constante es solo la semilla que se usa la primera vez que corre.
+const DAILY_SONGS_SEED = [
   { title:"Euge Quevedo · YouTube oficial", url:"https://www.youtube.com/channel/UC2fMc29XAwRkf3w57GRGMlg/videos", icon:"▶️", c1:"#FF5FA8", c2:"#E83D8C" },
   { title:"Euge Quevedo · Spotify", url:"http://smarturl.it/eugeniaquevedosp", icon:"🎧", c1:"#2FD9C4", c2:"#14B39E" },
   { title:"Más cuarteto en YouTube Music", url:"https://music.youtube.com/search?q=cuarteto", icon:"🪗", c1:"#FFC145", c2:"#FFA53D" },
   { title:"Más cuarteto en Spotify", url:"https://open.spotify.com/search/cuarteto", icon:"🎵", c1:"#A487F5", c2:"#8360E8" },
   { title:"Cuarteto en vivo (videos)", url:"https://www.youtube.com/results?search_query=cuarteto+en+vivo", icon:"📺", c1:"#FF8A3D", c2:"#F26A1B" },
 ];
+// Colores/ícono para canciones agregadas por el usuario (Nivel 20): cicla
+// por la misma paleta de la semilla en vez de pedirle a Verónica que
+// elija colores para un dato chico.
+const SONG_COLOR_PALETTE = DAILY_SONGS_SEED.map(s => ({ icon: s.icon, c1: s.c1, c2: s.c2 }));
+const DAILY_SONGS_STORAGE_KEY = 'veronica-daily-songs';
+let dailySongs = [];
+let editingSongId = null;
+
+async function loadDailySongs(){
+  try{
+    const raw = localStorage.getItem(DAILY_SONGS_STORAGE_KEY);
+    if (raw){ dailySongs = JSON.parse(raw); }
+    else {
+      dailySongs = DAILY_SONGS_SEED.map((s, i) => ({ ...s, id: 'seed-' + i }));
+      await saveDailySongs();
+    }
+  }catch(e){ dailySongs = DAILY_SONGS_SEED.map((s, i) => ({ ...s, id: 'seed-' + i })); }
+}
+async function saveDailySongs(){
+  try{ localStorage.setItem(DAILY_SONGS_STORAGE_KEY, JSON.stringify(dailySongs)); }
+  catch(e){ console.error('No se pudo guardar la canción del día', e); showSaveError('No se pudo guardar el cambio en la canción del día.'); }
+}
+
+// ---- Helper genérico de lista editable (Nivel 20) ----
+// La Biblioteca y la rotación de canciones comparten la misma fila (ícono +
+// título [+ meta opcional] + editar/borrar), el mismo flujo de guardado
+// (nombre + link, con http(s):// forzado si falta) y el mismo patrón de
+// confirmación antes de borrar. Antes eran dos copias casi idénticas; esto
+// las unifica para que un cambio futuro al patrón (ej. wording, escaping,
+// manejo de teclado) se haga en un solo lugar.
+function renderCrudItemsList(containerId, items, { emptyText, getIcon, getMeta, ariaDeleteSuffix, confirmDeleteText, onEdit, onDelete }){
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!items.length){
+    el.innerHTML = `<div class="lib-empty">${emptyText}</div>`;
+    return;
+  }
+  el.innerHTML = '';
+  [...items].reverse().forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'lib-item';
+    row.innerHTML = `
+      <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">
+        <div class="lib-item-icon">${getIcon(item)}</div>
+        <div class="lib-item-info">
+          <div class="lib-item-title">${escapeHtml(item.title)}</div>
+          ${getMeta ? `<div class="lib-item-type">${getMeta(item)}</div>` : ''}
+        </div>
+      </a>
+      <button class="lib-edit" data-id="${item.id}" aria-label="Editar ${escapeHtml(item.title)}">✏️</button>
+      <button class="lib-del" data-id="${item.id}" aria-label="Borrar ${escapeHtml(item.title)} ${ariaDeleteSuffix}">✕</button>
+    `;
+    row.querySelector('.lib-edit').onclick = () => onEdit(item.id);
+    row.querySelector('.lib-del').onclick = async () => {
+      if (!confirm(confirmDeleteText(item))) return;
+      await onDelete(item);
+    };
+    el.appendChild(row);
+  });
+}
+
+// Lee y valida el par nombre/link común a ambos forms; null si falta algo.
+function readCrudNameUrlForm(titleId, urlId){
+  const title = document.getElementById(titleId).value.trim();
+  let url = document.getElementById(urlId).value.trim();
+  if (!title || !url) { alert('Completá el nombre y el link.'); return null; }
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  return { title, url };
+}
+
+function renderSongsList(){
+  renderCrudItemsList('songItemsList', dailySongs, {
+    emptyText: 'Todavía no hay canciones en la rotación 🎵',
+    getIcon: (item) => item.icon || '🎵',
+    ariaDeleteSuffix: 'de la rotación',
+    confirmDeleteText: (item) => `¿Borrar "${item.title}" de la rotación de canciones?`,
+    onEdit: (id) => { editingSongId = id; renderLibrary(); },
+    onDelete: async (item) => {
+      dailySongs = dailySongs.filter(i => i.id !== item.id);
+      if (editingSongId === item.id) editingSongId = null;
+      await saveDailySongs();
+      renderSongsList();
+    },
+  });
+}
+
+async function submitSongForm(){
+  const fields = readCrudNameUrlForm('songTitleInput', 'songUrlInput');
+  if (!fields) return;
+  const { title, url } = fields;
+  if (editingSongId){
+    const entry = dailySongs.find(i => i.id === editingSongId);
+    if (entry){ entry.title = title; entry.url = url; }
+    editingSongId = null;
+  } else {
+    const palette = SONG_COLOR_PALETTE[dailySongs.length % SONG_COLOR_PALETTE.length];
+    dailySongs.push({ id: Date.now().toString(), title, url, icon: palette.icon, c1: palette.c1, c2: palette.c2 });
+  }
+  await saveDailySongs();
+  renderLibrary();
+}
 
 const LIB_TYPE_ICON = { musica:"🎵", audio:"🎙️", video:"📺" };
 const LIB_TYPE_LABEL = { musica:"Música", audio:"Audio / podcast", video:"Video" };
@@ -1087,50 +1203,27 @@ async function saveLibrary(){
 }
 
 function renderLibraryItems(){
-  const el = document.getElementById('libItemsList');
-  if (!el) return;
-  if (!libraryItems.length){
-    el.innerHTML = '<div class="lib-empty">Todavía no agregaste nada a tu biblioteca 🎧</div>';
-    return;
-  }
-  el.innerHTML = '';
-  [...libraryItems].reverse().forEach(item => {
-    const row = document.createElement('div');
-    row.className = 'lib-item';
-    row.innerHTML = `
-      <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">
-        <div class="lib-item-icon">${LIB_TYPE_ICON[item.type] || '🎵'}</div>
-        <div class="lib-item-info">
-          <div class="lib-item-title">${escapeHtml(item.title)}</div>
-          <div class="lib-item-type">${LIB_TYPE_LABEL[item.type] || 'Música'}</div>
-        </div>
-      </a>
-      <button class="lib-edit" data-id="${item.id}" aria-label="Editar ${escapeHtml(item.title)}">✏️</button>
-      <button class="lib-del" data-id="${item.id}" aria-label="Borrar ${escapeHtml(item.title)} de la biblioteca">✕</button>
-    `;
-    row.querySelector('.lib-edit').onclick = () => {
-      editingLibraryId = item.id;
-      renderLibrary();
-    };
-    row.querySelector('.lib-del').onclick = async () => {
-      if (!confirm(`¿Borrar "${item.title}" de tu biblioteca?`)) return;
+  renderCrudItemsList('libItemsList', libraryItems, {
+    emptyText: 'Todavía no agregaste nada a tu biblioteca 🎧',
+    getIcon: (item) => LIB_TYPE_ICON[item.type] || '🎵',
+    getMeta: (item) => LIB_TYPE_LABEL[item.type] || 'Música',
+    ariaDeleteSuffix: 'de la biblioteca',
+    confirmDeleteText: (item) => `¿Borrar "${item.title}" de tu biblioteca?`,
+    onEdit: (id) => { editingLibraryId = id; renderLibrary(); },
+    onDelete: async (item) => {
       libraryItems = libraryItems.filter(i => i.id !== item.id);
       if (editingLibraryId === item.id) editingLibraryId = null;
       await saveLibrary();
       renderLibraryItems();
-    };
-    el.appendChild(row);
+    },
   });
 }
 
 async function submitLibraryForm(){
-  const titleEl = document.getElementById('libTitleInput');
-  const urlEl = document.getElementById('libUrlInput');
+  const fields = readCrudNameUrlForm('libTitleInput', 'libUrlInput');
+  if (!fields) return;
+  const { title, url } = fields;
   const typeEl = document.getElementById('libTypeInput');
-  const title = titleEl.value.trim();
-  let url = urlEl.value.trim();
-  if (!title || !url) { alert('Completá el nombre y el link.'); return; }
-  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
   if (editingLibraryId){
     const entry = libraryItems.find(i => i.id === editingLibraryId);
     if (entry){ entry.title = title; entry.url = url; entry.type = typeEl.value; }
@@ -1144,7 +1237,8 @@ async function submitLibraryForm(){
 
 async function renderLibrary(){
   const wrap = document.getElementById('dayContent');
-  const song = songOfTheDay(DAILY_SONGS, new Date());
+  await loadDailySongs();
+  const song = songOfTheDay(dailySongs, new Date());
   wrap.innerHTML = `
     <div class="lib-banner">
       <div class="name">🎵 Biblioteca para el camino</div>
@@ -1158,6 +1252,19 @@ async function renderLibrary(){
       <div class="lib-title">${escapeHtml(song.title)}</div>
     </a>
     ` : ''}
+
+    <div class="lib-section-title">${editingSongId ? 'Editar canción' : 'Agregar canción a la rotación'}</div>
+    <div class="lib-form">
+      <label for="songTitleInput">Nombre</label>
+      <input type="text" id="songTitleInput" placeholder="Nombre de la canción o playlist">
+      <label for="songUrlInput">Link</label>
+      <input type="text" id="songUrlInput" placeholder="Link (YouTube, Spotify, etc.)">
+      <button class="lib-add-btn" id="songAddBtn">${editingSongId ? '💾 Guardar cambios' : '+ Agregar a la rotación'}</button>
+      ${editingSongId ? '<button class="bday-cancel-btn" id="songCancelBtn" type="button">Cancelar edición</button>' : ''}
+    </div>
+
+    <div class="lib-section-title">Tus canciones</div>
+    <div id="songItemsList"></div>
 
     <div class="lib-section-title">Accesos rápidos</div>
     <div class="lib-grid" id="libQuickGrid"></div>
@@ -1192,6 +1299,17 @@ async function renderLibrary(){
     a.innerHTML = `<div class="lib-icon" style="background:linear-gradient(135deg, ${l.c1}, ${l.c2})">${l.icon}</div><div class="lib-title">${l.title}</div>`;
     grid.appendChild(a);
   });
+
+  document.getElementById('songAddBtn').onclick = submitSongForm;
+  if (editingSongId){
+    document.getElementById('songCancelBtn').onclick = () => { editingSongId = null; renderLibrary(); };
+    const entry = dailySongs.find(i => i.id === editingSongId);
+    if (entry){
+      document.getElementById('songTitleInput').value = entry.title;
+      document.getElementById('songUrlInput').value = entry.url;
+    }
+  }
+  renderSongsList();
 
   document.getElementById('libAddBtn').onclick = submitLibraryForm;
   if (editingLibraryId){
@@ -1428,8 +1546,13 @@ spawnFallingConfetti();
 // por el ancho de la pantalla, un banner breve y un anuncio para lectores
 // de pantalla. Dispara solo cuando se tilda el último ítem del bloque (ver
 // el handler de checkbox en renderDay()), nunca al desmarcar ni en un render.
-let blockCelebrationTimeout = null;
-function celebrateBlockComplete(blockTitle){
+// Compartido con el hito de racha (Nivel 20) vía showCelebrationBanner() —
+// mismo banner (#blockCelebration), mismo patrón de confetti/timeout/anuncio.
+// blockCelebrationTimeout está declarado arriba, junto a STREAK_MILESTONES
+// (ver esa nota) — showCelebrationBanner() es alcanzable desde el primer
+// renderDay() del boot vía celebrateStreakMilestone(), así que no puede
+// vivir acá abajo sin caer en temporal dead zone en ese primer render.
+function showCelebrationBanner(text, announceText){
   const w = window.innerWidth;
   [0.2, 0.4, 0.6, 0.8].forEach((frac, i) => {
     setTimeout(() => burstConfetti(w * frac, 80), i * 80);
@@ -1442,12 +1565,93 @@ function celebrateBlockComplete(blockTitle){
     banner.setAttribute('role', 'status');
     document.body.appendChild(banner);
   }
-  banner.textContent = `🎉 ¡${blockTitle} completa! 🎉`;
+  banner.textContent = text;
   banner.classList.add('visible');
   clearTimeout(blockCelebrationTimeout);
   blockCelebrationTimeout = setTimeout(() => banner.classList.remove('visible'), 3000);
 
-  announce(`¡Bloque ${blockTitle} completo!`);
+  announce(announceText);
+}
+
+function celebrateBlockComplete(blockTitle){
+  showCelebrationBanner(`🎉 ¡${blockTitle} completa! 🎉`, `¡Bloque ${blockTitle} completo!`);
+}
+
+// ---- Hito de racha (Nivel 20) ----
+// Mismo tratamiento visual que celebrateBlockComplete() (confetti grande +
+// banner + anuncio), disparado cuando la racha de rutina cruza un valor de
+// STREAK_MILESTONES (declarado arriba, junto a renderStreakBadge() — ver esa
+// nota). 100% local: no hay push, no se sincroniza nada al Worker (ver spec
+// de Nivel 20 — se descartó reabrir la privacidad de Nivel 16 para esto).
+//
+// El último hito celebrado se guarda en localStorage como {value, date} —
+// no solo el número, también el día calendario en que se guardó. Esto
+// importa porque renderStreakBadge() (y por lo tanto esta función) se llama
+// en cada render, no solo al completar el día: destildar un ítem por error,
+// o agregar una tarea nueva a un bloque ya completo, hace que la racha de
+// HOY fluctúe hacia abajo y para arriba varias veces sin que eso sea un
+// corte real de racha. Solo se trata como corte real (y se resetea el hito
+// para poder volver a celebrarlo) cuando cambió el día calendario Y la
+// racha bajó — nunca dentro del mismo día. streakCelebrationPending y
+// blockCelebrationTimeout (usados más abajo, este último compartido con
+// celebrateBlockComplete()) están declarados arriba, junto a
+// STREAK_MILESTONES — ver esa nota.
+function celebrateStreakMilestone(streak){
+  const todayIso = isoDate(new Date());
+  let state = null;
+  try { state = JSON.parse(localStorage.getItem(STREAK_MILESTONE_KEY)); } catch(e) { state = null; }
+
+  if (!state || typeof state.value !== 'number'){
+    // Primera vez que corre este nivel: no celebrar retroactivamente una
+    // racha que ya venía de antes, arrancar en el hito más alto ya superado.
+    const alreadyPassed = STREAK_MILESTONES.filter(m => streak >= m);
+    const start = alreadyPassed.length ? Math.max(...alreadyPassed) : 0;
+    localStorage.setItem(STREAK_MILESTONE_KEY, JSON.stringify({ value: start, date: todayIso }));
+    return;
+  }
+
+  let last = state.value;
+  if (todayIso !== state.date && streak < last) last = 0; // corte real, no fluctuación del mismo día
+
+  const reached = STREAK_MILESTONES.filter(m => m > last && streak >= m);
+  if (!reached.length){
+    if (last !== state.value || todayIso !== state.date){
+      localStorage.setItem(STREAK_MILESTONE_KEY, JSON.stringify({ value: last, date: todayIso }));
+    }
+    return;
+  }
+  const milestone = Math.max(...reached);
+
+  // El hito se marca "celebrado" en localStorage recién cuando la
+  // celebración se muestra de verdad (dentro de show()), no antes: si se
+  // marcara acá arriba y el usuario cierra o recarga durante la demora de
+  // abajo (banner de bloque todavía visible), quedaría marcado como
+  // celebrado sin haberse mostrado nunca — se perdería para siempre.
+  //
+  // Por eso mismo el localStorage todavía no refleja este hito mientras
+  // show() está encolado (ver abajo) — así que un segundo llamado de
+  // celebrateStreakMilestone() durante esa demora (ej. destildar/tildar de
+  // nuevo dentro de los 3s) volvería a detectar el mismo hito como
+  // "recién alcanzado" y encolaría un show() duplicado (confetti/banner/
+  // announce() dos veces). streakCelebrationPending evita eso: mientras
+  // haya un show() ya encolado, un llamado re-entrante no encola otro.
+  const show = () => {
+    streakCelebrationPending = false;
+    localStorage.setItem(STREAK_MILESTONE_KEY, JSON.stringify({ value: milestone, date: todayIso }));
+    showCelebrationBanner(`🔥 ¡${milestone} días seguidos! 🔥`, `¡Racha de ${milestone} días seguidos!`);
+  };
+
+  // Si el banner ya está mostrando otra celebración (ej. completaste el
+  // último bloque del día en el mismo tilde que cruzó el hito), esperar a
+  // que termine en vez de pisarla — así no se pierde ninguna de las dos.
+  const existingBanner = document.getElementById('blockCelebration');
+  if (existingBanner && existingBanner.classList.contains('visible')){
+    if (streakCelebrationPending) return;
+    streakCelebrationPending = true;
+    setTimeout(show, 3000);
+  } else {
+    show();
+  }
 }
 
 const CONFETTI_EMOJIS = ['🎉','🎶','✨','🔥'];
@@ -1482,10 +1686,12 @@ function exportData(){
     checklist: localStorage.getItem(CHECK_STORAGE_KEY),
     walks: localStorage.getItem(STORAGE_KEY),
     library: localStorage.getItem(LIB_STORAGE_KEY),
+    dailySongs: localStorage.getItem(DAILY_SONGS_STORAGE_KEY),
     birthdays: localStorage.getItem(BIRTHDAYS_STORAGE_KEY),
     routine: localStorage.getItem(ROUTINE_STORAGE_KEY),
     routineHistory: localStorage.getItem(STREAK_STORAGE_KEY),
     noticeDays: localStorage.getItem(NOTICE_DAYS_STORAGE_KEY),
+    streakMilestone: localStorage.getItem(STREAK_MILESTONE_KEY),
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1508,10 +1714,12 @@ function importData(file){
       if (payload.checklist) localStorage.setItem(CHECK_STORAGE_KEY, payload.checklist);
       if (payload.walks) localStorage.setItem(STORAGE_KEY, payload.walks);
       if (payload.library) localStorage.setItem(LIB_STORAGE_KEY, payload.library);
+      if (payload.dailySongs) localStorage.setItem(DAILY_SONGS_STORAGE_KEY, payload.dailySongs);
       if (payload.birthdays) localStorage.setItem(BIRTHDAYS_STORAGE_KEY, payload.birthdays);
       if (payload.routine) localStorage.setItem(ROUTINE_STORAGE_KEY, payload.routine);
       if (payload.routineHistory) localStorage.setItem(STREAK_STORAGE_KEY, payload.routineHistory);
       if (payload.noticeDays) localStorage.setItem(NOTICE_DAYS_STORAGE_KEY, payload.noticeDays);
+      if (payload.streakMilestone) localStorage.setItem(STREAK_MILESTONE_KEY, payload.streakMilestone);
       alert('Datos importados correctamente. La página se va a recargar.');
       location.reload();
     }catch(e){
