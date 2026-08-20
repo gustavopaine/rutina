@@ -9,7 +9,7 @@ const { gotoApp } = require('./helpers');
 
 test('el texto del banner de Caminata no se superpone al título', async ({ page }) => {
   await gotoApp(page);
-  await page.getByRole('tab', { name: '📍 Caminata' }).click();
+  await page.getByRole('tab', { name: 'Caminata' }).click();
 
   const nameBox = await page.locator('.walk-banner .name').boundingBox();
   const noteBox = await page.locator('.walk-banner .banner-note').boundingBox();
@@ -19,7 +19,7 @@ test('el texto del banner de Caminata no se superpone al título', async ({ page
 
 test('el texto del banner de Biblioteca no se superpone al título', async ({ page }) => {
   await gotoApp(page);
-  await page.getByRole('tab', { name: '🎵 Biblioteca' }).click();
+  await page.getByRole('tab', { name: 'Biblioteca' }).click();
 
   const nameBox = await page.locator('.lib-banner .name').boundingBox();
   const noteBox = await page.locator('.lib-banner .banner-note').boundingBox();

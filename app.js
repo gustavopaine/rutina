@@ -555,12 +555,48 @@ async function deleteBirthday(id){
   renderBirthdays();
 }
 
-const TABS = [...ORDER, "caminata", "biblioteca", "cumples", "ciclo"];
+// Navegación en 2 niveles (Nivel 22): antes un único tablist de 11
+// ítems (7 días + 4 secciones) no entraba en una fila en celular. Ahora
+// una barra inferior fija con las 5 secciones (Rutina + las 4 de
+// siempre) y, aparte, el selector de día (7 días) que solo se muestra
+// dentro de Rutina. `current` sigue siendo la única fuente de verdad
+// (un día de semana o el nombre de una sección) — no se agregó estado
+// nuevo, solo se separó el render en dos grupos.
+const SECTIONS = ["caminata", "biblioteca", "cumples", "ciclo"];
+const SECTION_ICON = { caminata: '📍', biblioteca: '🎵', cumples: '🎂', ciclo: '🩸' };
+const SECTION_LABEL = { caminata: 'Caminata', biblioteca: 'Biblioteca', cumples: 'Cumples', ciclo: 'Ciclo' };
+const RUTINA_NAV_COLOR = ['#F26A1B', '#F26A1B']; // naranja estable: Rutina abarca los 7 colores de día, el ítem de nav no salta de color
 
-function renderTabs(){
-  const tabs = document.getElementById('tabs');
+function isDayKey(key){ return ORDER.includes(key); }
+
+// Último día visitado (revisión de código): sin esto, volver a "Rutina"
+// desde una sección con el botón de la barra inferior siempre caía en el
+// día de hoy, perdiendo el día que el usuario tenía elegido (ej. entrar a
+// Biblioteca desde el viernes y volver a Rutina te tiraba de nuevo a hoy).
+let lastDayKey = current;
+
+function switchTo(key){
+  current = key;
+  if (isDayKey(current)) lastDayKey = current;
+  addingToBlock = null; editingItemId = null;
+  renderDayTabs();
+  renderSectionNav();
+  renderFloatingNotes();
+  if (current==='cumples') renderBirthdays();
+  else if (current==='ciclo') renderCycle();
+  else if (current==='caminata') renderWalk();
+  else if (current==='biblioteca') renderLibrary();
+  else renderDay();
+}
+
+function renderDayTabs(){
+  const wrap = document.getElementById('dayTabsWrap');
+  const tabs = document.getElementById('dayTabs');
+  const onDay = isDayKey(current);
+  wrap.hidden = !onDay;
+  if (!onDay) return;
   tabs.innerHTML = '';
-  TABS.forEach(key => {
+  ORDER.forEach(key => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.setAttribute('role', 'tab');
@@ -570,23 +606,9 @@ function renderTabs(){
     // activa); dentro del grupo se navega con las flechas.
     btn.tabIndex = key===current ? 0 : -1;
     const [c1, c2] = DAY_COLORS[key];
-    if (key === 'cumples'){
-      btn.className = 'tab bdaytab' + (key===current?' active':'');
-      btn.textContent = '🎂 Cumples';
-    } else if (key === 'ciclo'){
-      btn.className = 'tab cycletab' + (key===current?' active':'');
-      btn.textContent = '🩸 Ciclo';
-    } else if (key === 'caminata'){
-      btn.className = 'tab walktab' + (key===current?' active':'');
-      btn.textContent = '📍 Caminata';
-    } else if (key === 'biblioteca'){
-      btn.className = 'tab libtab' + (key===current?' active':'');
-      btn.textContent = '🎵 Biblioteca';
-    } else {
-      const d = DEFAULT_DATA[key];
-      btn.className = 'tab' + (key===current?' active':'');
-      btn.textContent = d.label.slice(0,3);
-    }
+    const d = DEFAULT_DATA[key];
+    btn.className = 'tab' + (key===current?' active':'');
+    btn.textContent = d.label.slice(0,3);
     if (key===current){
       // Cortina oscura semitransparente para que el texto blanco llegue al
       // contraste mínimo (WCAG 4.5:1) sin cambiar el color propio del día
@@ -594,38 +616,65 @@ function renderTabs(){
       btn.style.background = `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), linear-gradient(135deg, ${c1}, ${c2})`;
       btn.style.color = '#fff';
     }
-    btn.onclick = () => {
-      current = key; renderTabs();
-      addingToBlock = null; editingItemId = null;
-      if (current==='cumples') renderBirthdays();
-      else if (current==='ciclo') renderCycle();
-      else if (current==='caminata') renderWalk();
-      else if (current==='biblioteca') renderLibrary();
-      else renderDay();
-    };
+    btn.onclick = () => switchTo(key);
     tabs.appendChild(btn);
   });
 }
 
-// Navegación por teclado del grupo de pestañas (patrón ARIA de tabs):
-// flechas izq/der mueven y activan, Home/End van al extremo. El listener
-// se agrega una sola vez sobre el contenedor, que no se recrea entre
-// renders (solo se reemplaza su innerHTML).
-document.getElementById('tabs').addEventListener('keydown', (ev) => {
-  const KEYS = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
-  if (!KEYS.includes(ev.key)) return;
-  const tabButtons = [...document.querySelectorAll('#tabs [role="tab"]')];
-  const idx = tabButtons.indexOf(document.activeElement);
-  if (idx === -1) return;
-  ev.preventDefault();
-  let newIdx = idx;
-  if (ev.key === 'ArrowRight') newIdx = (idx + 1) % tabButtons.length;
-  else if (ev.key === 'ArrowLeft') newIdx = (idx - 1 + tabButtons.length) % tabButtons.length;
-  else if (ev.key === 'Home') newIdx = 0;
-  else if (ev.key === 'End') newIdx = tabButtons.length - 1;
-  tabButtons[newIdx].click();
-  document.querySelector('#tabs [role="tab"][aria-selected="true"]')?.focus();
-});
+function renderSectionNav(){
+  const nav = document.getElementById('bottomNav');
+  nav.innerHTML = '';
+  const items = [
+    { key: 'rutina', icon: '🏠', label: 'Rutina', colors: RUTINA_NAV_COLOR },
+    ...SECTIONS.map(s => ({ key: s, icon: SECTION_ICON[s], label: SECTION_LABEL[s], colors: DAY_COLORS[s] })),
+  ];
+  const activeKey = isDayKey(current) ? 'rutina' : current;
+  items.forEach(({ key, icon, label, colors }) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('role', 'tab');
+    const isActive = key === activeKey;
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    btn.setAttribute('aria-controls', 'dayContent');
+    btn.tabIndex = isActive ? 0 : -1;
+    btn.className = 'nav-item' + (isActive ? ' active' : '');
+    btn.innerHTML = `<span class="icon" aria-hidden="true">${icon}</span><span class="label">${label}</span>`;
+    if (isActive){
+      // Misma cortina oscura que en el selector de día (ver renderDayTabs) —
+      // sin esto, el texto blanco no llega a 4.5:1 con colores como
+      // --teal/--pink/--orange-deep de fondo (revisión de código).
+      const [c1, c2] = colors;
+      btn.style.background = `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), linear-gradient(120deg, ${c1}, ${c2})`;
+    }
+    btn.onclick = () => switchTo(key === 'rutina' ? lastDayKey : key);
+    nav.appendChild(btn);
+  });
+}
+
+// Navegación por teclado (patrón ARIA de tabs): flechas izq/der mueven
+// y activan, Home/End van al extremo. Un mismo helper para los dos
+// grupos (día / secciones) — antes era una sola lista de 11, ahora dos
+// listas separadas de 7 y 5. El listener se agrega una sola vez sobre
+// cada contenedor, que no se recrea entre renders (solo su innerHTML).
+function attachTabsKeyboardNav(containerId){
+  document.getElementById(containerId).addEventListener('keydown', (ev) => {
+    const KEYS = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!KEYS.includes(ev.key)) return;
+    const tabButtons = [...document.querySelectorAll(`#${containerId} [role="tab"]`)];
+    const idx = tabButtons.indexOf(document.activeElement);
+    if (idx === -1) return;
+    ev.preventDefault();
+    let newIdx = idx;
+    if (ev.key === 'ArrowRight') newIdx = (idx + 1) % tabButtons.length;
+    else if (ev.key === 'ArrowLeft') newIdx = (idx - 1 + tabButtons.length) % tabButtons.length;
+    else if (ev.key === 'Home') newIdx = 0;
+    else if (ev.key === 'End') newIdx = tabButtons.length - 1;
+    tabButtons[newIdx].click();
+    document.querySelector(`#${containerId} [role="tab"][aria-selected="true"]`)?.focus();
+  });
+}
+attachTabsKeyboardNav('dayTabs');
+attachTabsKeyboardNav('bottomNav');
 
 async function renderBirthdays(){
   await loadBirthdays();
@@ -1734,13 +1783,14 @@ function renderDay(){
   renderStreakBadge();
 }
 
-renderTabs();
-renderDay();
-window.__appBooted = true;
-
-// Notas musicales flotando de fondo
+// Notas musicales flotando de fondo (Nivel 22: contextuales — se
+// suprimen en Ciclo, dato de salud con un tono más calmo que el resto
+// de la app; se llama desde switchTo() en cada cambio de pestaña, no
+// solo una vez al bootear).
 const NOTE_EMOJIS = ['🎵','🎶','🎸','🥁','✨'];
-function spawnNotes(){
+function renderFloatingNotes(){
+  document.querySelectorAll('.note').forEach(el => el.remove());
+  if (current === 'ciclo') return;
   const n = window.innerWidth < 480 ? 12 : 20;
   for (let i=0; i<n; i++){
     const s = document.createElement('div');
@@ -1755,7 +1805,6 @@ function spawnNotes(){
     document.body.appendChild(s);
   }
 }
-spawnNotes();
 
 // Confeti cayendo de forma continua desde arriba
 const FALL_COLORS = ['#FF5FA8','#FFC145','#2FD9C4','#A487F5','#FF8A3D'];
@@ -2191,3 +2240,10 @@ if (reminderBtn && 'serviceWorker' in navigator && 'PushManager' in window && 'N
   };
   navigator.serviceWorker.ready.then(updateReminderButton).catch(() => {});
 }
+
+// ---- Boot ----
+// Se dispara acá, al final del archivo, para que todo lo que switchTo()
+// necesita (renderDay/renderBirthdays/renderCycle/renderWalk/renderLibrary,
+// renderFloatingNotes() y su NOTE_EMOJIS) ya esté definido/inicializado.
+switchTo(current);
+window.__appBooted = true;

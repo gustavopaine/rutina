@@ -25,7 +25,7 @@ test('burstConfetti no deja elementos colgados en el DOM tras usar la app un rat
 });
 
 test('guardar el progreso de una caminata larga (miles de puntos) sigue siendo rápido', async ({ page }) => {
-  await page.getByRole('tab', { name: '📍 Caminata' }).click();
+  await page.getByRole('tab', { name: 'Caminata' }).click();
 
   const elapsedMs = await page.evaluate(() => {
     // Simula una caminata de varias horas con actualizaciones cada

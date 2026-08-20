@@ -5,7 +5,7 @@ test.beforeEach(async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => localStorage.clear());
   await reloadApp(page);
-  await page.getByRole('tab', { name: '🎵 Biblioteca' }).click();
+  await page.getByRole('tab', { name: 'Biblioteca' }).click();
 });
 
 test('agregar, editar y borrar un ítem de biblioteca', async ({ page }) => {

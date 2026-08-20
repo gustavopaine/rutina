@@ -27,7 +27,7 @@ test.beforeEach(async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => localStorage.clear());
   await reloadApp(page);
-  await page.getByRole('tab', { name: '🩸 Ciclo' }).click();
+  await page.getByRole('tab', { name: 'Ciclo' }).click();
 });
 
 test('sin historial, "Inicio del período" crea una entrada abierta y muestra "Período en curso, día 1"', async ({ page }) => {
@@ -68,7 +68,7 @@ test('con 2+ ciclos cerrados, Análisis muestra el promedio real (no el default 
   const cycleB = { id: 'b', startDate: daysAgoIso(10), endDate: daysAgoIso(6) };  // 5 días, gap 30
   await page.evaluate((h) => localStorage.setItem('veronica-cycle-history', JSON.stringify(h)), [cycleA, cycleB]);
   await reloadApp(page);
-  await page.getByRole('tab', { name: '🩸 Ciclo' }).click();
+  await page.getByRole('tab', { name: 'Ciclo' }).click();
 
   // No se hardcodea el número esperado por la misma razón que streak.spec.js:
   // este test verifica el cableado end-to-end (historial -> UI), la
@@ -88,7 +88,7 @@ test('fase actual: menstruación mientras el período sigue abierto', async ({ p
   const entry = { id: 'a', startDate: daysAgoIso(1), endDate: null };
   await page.evaluate((h) => localStorage.setItem('veronica-cycle-history', JSON.stringify(h)), [entry]);
   await reloadApp(page);
-  await page.getByRole('tab', { name: '🩸 Ciclo' }).click();
+  await page.getByRole('tab', { name: 'Ciclo' }).click();
   await expect(page.locator('.when')).toHaveText('🩸 Menstruación');
 });
 
@@ -100,7 +100,7 @@ test('fase actual: fértil dentro de la ventana estimada', async ({ page }) => {
   const entry = { id: 'a', startDate: daysAgoIso(14), endDate: daysAgoIso(10) };
   await page.evaluate((h) => localStorage.setItem('veronica-cycle-history', JSON.stringify(h)), [entry]);
   await reloadApp(page);
-  await page.getByRole('tab', { name: '🩸 Ciclo' }).click();
+  await page.getByRole('tab', { name: 'Ciclo' }).click();
   await expect(page.locator('.when')).toHaveText('🌱 Ventana fértil');
 });
 
@@ -108,7 +108,7 @@ test('fase actual: otro fuera de menstruación y de la ventana fértil', async (
   const entry = { id: 'a', startDate: daysAgoIso(20), endDate: daysAgoIso(16) };
   await page.evaluate((h) => localStorage.setItem('veronica-cycle-history', JSON.stringify(h)), [entry]);
   await reloadApp(page);
-  await page.getByRole('tab', { name: '🩸 Ciclo' }).click();
+  await page.getByRole('tab', { name: 'Ciclo' }).click();
   await expect(page.locator('.when')).toHaveText('🗓️ Otro');
 });
 
@@ -116,7 +116,7 @@ test('editar una entrada cerrada para borrarle la fecha de fin no reabre un segu
   const oldEntry = { id: 'old', startDate: daysAgoIso(20), endDate: daysAgoIso(16) };
   await page.evaluate((h) => localStorage.setItem('veronica-cycle-history', JSON.stringify(h)), [oldEntry]);
   await reloadApp(page);
-  await page.getByRole('tab', { name: '🩸 Ciclo' }).click();
+  await page.getByRole('tab', { name: 'Ciclo' }).click();
 
   await page.getByRole('button', { name: '🩸 Inicio del período' }).click(); // abre un período nuevo, hoy
 

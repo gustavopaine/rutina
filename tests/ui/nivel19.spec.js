@@ -34,7 +34,7 @@ test.describe('canción del día', () => {
     await gotoApp(page);
     await page.evaluate(() => localStorage.clear());
     await reloadApp(page);
-    await page.getByRole('tab', { name: '🎵 Biblioteca' }).click();
+    await page.getByRole('tab', { name: 'Biblioteca' }).click();
 
     const card = page.locator('.song-of-day');
     await expect(card).toBeVisible();
@@ -43,7 +43,7 @@ test.describe('canción del día', () => {
     const title1 = await card.locator('.lib-title').innerText();
 
     await reloadApp(page);
-    await page.getByRole('tab', { name: '🎵 Biblioteca' }).click();
+    await page.getByRole('tab', { name: 'Biblioteca' }).click();
     const title2 = await page.locator('.song-of-day .lib-title').innerText();
     expect(title2).toBe(title1);
   });

@@ -29,23 +29,13 @@ body{
   animation: driftBg 16s ease-in-out infinite;
   font-family:'Nunito', sans-serif;
   color:var(--text);
-  padding:28px 16px 60px;
+  /* Nivel 22: menos padding arriba (el header compacto ya no necesita el
+     margen que pedía la escena grande) y más abajo, para que el contenido
+     no quede tapado por la barra de navegación inferior fija. */
+  padding:0 16px calc(92px + env(safe-area-inset-bottom, 0px));
   min-height:100vh;
   overflow-x:hidden;
   position:relative;
-}
-.stage-scene{
-  position:fixed;
-  left:0; right:0; top:0;
-  height:340px;
-  z-index:0;
-  pointer-events:none;
-  opacity:1;
-}
-.stage-scene svg{ animation: sceneSway 8s ease-in-out infinite; transform-origin:top center; }
-@keyframes sceneSway{
-  0%,100%{ transform:scale(1) rotate(0deg); }
-  50%{ transform:scale(1.03) rotate(0.6deg); }
 }
 .confetti-fall{
   position:fixed;
@@ -87,94 +77,50 @@ body{
   50%{ transform:translateY(-20px) rotate(14deg); }
 }
 
-header{text-align:center; margin-bottom:24px; position:relative; z-index:1;}
-.vinyl{
-  width:70px; height:70px; margin:0 auto 10px;
+/* Header compacto y fijo (Nivel 22) — reemplaza la escena completa
+   (vinilo animado grande + haces de luz + siluetas + h1 de 32px) que
+   se repetía idéntica en las 11 pestañas y ocupaba ~40% del viewport
+   en celular. El vinilo miniatura conserva el guiño visual sin el
+   costo de espacio; sticky para quedar visible mientras se scrollea
+   una lista larga. */
+.app-header{
+  position:sticky; top:0; z-index:3;
+  display:flex; align-items:center; gap:10px;
+  height:60px;
+  margin:0 -16px; padding:0 16px;
+  background:var(--cream);
+  box-shadow:0 2px 10px -6px rgba(74,59,71,0.15);
+}
+.vinyl-mini{
+  width:34px; height:34px; flex:0 0 auto;
   border-radius:50%;
   background:
-    radial-gradient(circle at center, #FFF8EE 0 8px, #fff 8px 10px, #FFF8EE 10px 11px, transparent 11px),
+    radial-gradient(circle at center, var(--cream) 0 4px, #fff 4px 5px, var(--cream) 5px 6px, transparent 6px),
     conic-gradient(from 0deg, var(--orange), var(--pink), var(--violet), var(--teal), var(--gold), var(--orange));
-  box-shadow:0 10px 24px -8px rgba(242,106,27,0.5), 0 0 0 4px #fff, 0 0 0 6px var(--pink);
+  box-shadow:0 4px 10px -4px rgba(242,106,27,0.5), 0 0 0 2px #fff, 0 0 0 3px var(--pink);
   animation: spinVinyl 3.5s linear infinite;
 }
 @keyframes spinVinyl{ to{ transform:rotate(360deg); } }
-.beams{
-  position:absolute;
-  top:-30px; left:50%;
-  transform:translateX(-50%);
-  width:340px; height:180px;
-  z-index:-1;
-  opacity:0.55;
-  animation: sweepBeams 5s ease-in-out infinite;
-  pointer-events:none;
+.app-header-id{ flex:1; min-width:0; }
+.app-header-name{
+  margin:0; /* h1 (revisión de código: la app no tenía ningún heading de nivel superior) trae margen de agente por defecto */
+  font-family:'Baloo 2', sans-serif;
+  font-weight:800;
+  font-size:17px;
+  line-height:1.15;
 }
-@keyframes sweepBeams{
-  0%,100%{ transform:translateX(-50%) rotate(-4deg); }
-  50%{ transform:translateX(-50%) rotate(4deg); }
-}
-.soundbars{
-  display:flex; align-items:flex-end; justify-content:center;
-  gap:4px; height:20px; margin:6px auto 0;
-}
-.soundbars span{
-  display:inline-block;
-  width:4px;
-  border-radius:3px;
-  background:linear-gradient(180deg, var(--pink), var(--orange));
-  animation: bounceBar 0.9s ease-in-out infinite;
-}
-.soundbars span:nth-child(1){ height:8px; animation-delay:0s; background:linear-gradient(180deg, var(--teal), var(--teal-deep)); }
-.soundbars span:nth-child(2){ height:16px; animation-delay:.15s; background:linear-gradient(180deg, var(--pink), var(--pink-deep)); }
-.soundbars span:nth-child(3){ height:11px; animation-delay:.3s; background:linear-gradient(180deg, var(--gold), var(--orange-deep)); }
-.soundbars span:nth-child(4){ height:18px; animation-delay:.1s; background:linear-gradient(180deg, var(--violet), var(--violet-deep)); }
-.soundbars span:nth-child(5){ height:9px; animation-delay:.25s; background:linear-gradient(180deg, var(--orange), var(--orange-deep)); }
-@keyframes bounceBar{
-  0%,100%{ transform:scaleY(0.5); }
-  50%{ transform:scaleY(1.6); }
+.app-header-sub{
+  font-size:10px;
+  font-weight:700;
+  color:var(--text-soft);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 
-.kicker{
-  font-family:'Baloo 2', sans-serif;
-  font-weight:800;
-  font-size:13px;
-  letter-spacing:2.5px;
-  text-transform:uppercase;
-  background:linear-gradient(90deg, var(--orange), var(--gold));
-  -webkit-background-clip:text;
-  background-clip:text;
-  color:transparent;
-  margin-bottom:4px;
-}
-h1{
-  font-family:'Baloo 2', sans-serif;
-  font-weight:800;
-  font-size:32px;
-  margin:0;
-  line-height:1.1;
-}
-h1 span{
-  background:linear-gradient(90deg, var(--pink-deep), var(--orange), var(--gold));
-  background-size:200% auto;
-  animation: textShine 4s ease infinite;
-  -webkit-background-clip:text;
-  background-clip:text;
-  color:transparent;
-}
-@keyframes textShine{
-  0%{ background-position:0% 50%; }
-  50%{ background-position:100% 50%; }
-  100%{ background-position:0% 50%; }
-}
-.sub{
-  margin-top:8px;
-  font-size:14px;
-  color:var(--text-soft);
-  font-weight:700;
-}
+#dayTabsWrap{ padding-top:10px; }
 
 .streak-badge{
   display:inline-flex; align-items:center; gap:6px;
-  margin-top:12px;
+  margin:0 0 10px;
   padding:8px 16px;
   border-radius:999px;
   font-family:'Baloo 2', sans-serif;
@@ -198,37 +144,41 @@ h1 span{
 
 .weather-card{
   display:inline-flex; align-items:center; gap:6px;
-  margin-top:8px;
-  padding:6px 14px;
+  flex:0 0 auto;
+  padding:6px 10px;
   border-radius:999px;
-  font-size:12.5px;
+  font-size:11.5px;
   font-weight:700;
   color:var(--text);
   background:var(--card);
-  box-shadow:0 4px 14px -10px rgba(74,59,71,0.25);
+  box-shadow:0 3px 8px -6px rgba(74,59,71,0.25);
+  white-space:nowrap;
 }
 .weather-card[hidden]{ display:none; }
 
-.tabs{
+/* Selector de día (Nivel 22): separado de la navegación de secciones
+   (.bottom-nav, más abajo) — vive solo dentro de Rutina, pills más
+   chicas que antes porque ya no comparte fila con las 4 secciones. */
+.daytabs{
   display:flex;
   gap:6px;
   overflow-x:auto;
-  padding:6px 2px 14px;
+  padding:2px 2px 12px;
   -webkit-overflow-scrolling:touch;
   scrollbar-width:none;
 }
-.tabs::-webkit-scrollbar{display:none;}
+.daytabs::-webkit-scrollbar{display:none;}
 .tab{
   flex:0 0 auto;
   font-family:'Baloo 2', sans-serif;
   font-weight:700;
-  font-size:13.5px;
-  padding:10px 14px;
-  border-radius:16px;
+  font-size:12.5px;
+  padding:8px 12px;
+  border-radius:14px;
   border:none;
   background:var(--card);
   color:var(--orange-deep);
-  box-shadow:0 3px 10px -6px rgba(242,106,27,0.3);
+  box-shadow:0 2px 6px -4px rgba(242,106,27,0.3);
   cursor:pointer;
   transition:all .18s ease;
   white-space:nowrap;
@@ -237,15 +187,42 @@ h1 span{
 .tab:focus-visible{ outline:2.5px solid var(--orange-deep); outline-offset:2px; }
 .tab.active{
   color:#fff;
-  box-shadow:var(--shadow);
-  transform:translateY(-3px) scale(1.04);
-  /* El fondo (ver renderTabs en app.js) lleva una cortina oscura semi-
-     transparente detrás del degradé propio del día, así el texto blanco
-     llega a 4.5:1 sin cambiar el color en el resto de la app. */
+  box-shadow:0 4px 10px -4px rgba(242,106,27,0.4);
+  transform:scale(1.05);
+  /* El fondo (ver renderDayTabs en app.js) lleva una cortina oscura
+     semi-transparente detrás del degradé propio del día, así el texto
+     blanco llega a 4.5:1 sin cambiar el color en el resto de la app. */
   text-shadow:0 1px 3px rgba(0,0,0,0.3);
 }
-.tab.bdaytab{ background:#F2E7FF; color:var(--violet-deep); }
-.tab.cycletab{ background:#FFE3EF; color:var(--pink-deep); }
+
+/* Navegación de secciones (Nivel 22): barra inferior fija, 5 ítems
+   (Rutina + Caminata/Biblioteca/Cumples/Ciclo). Reemplaza a las 4
+   pestañas de sección que antes compartían fila con los 7 días. */
+.bottom-nav{
+  position:fixed; left:0; right:0; bottom:0; z-index:3;
+  display:flex; justify-content:space-around; align-items:center;
+  padding:8px 4px calc(8px + env(safe-area-inset-bottom, 0px));
+  background:var(--card);
+  box-shadow:0 -6px 20px -12px rgba(74,59,71,0.25);
+}
+.nav-item{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:2px;
+  min-width:44px; min-height:44px;
+  padding:6px 10px;
+  border:none;
+  border-radius:14px;
+  background:transparent;
+  color:var(--text-soft);
+  cursor:pointer;
+  transition:transform .15s ease;
+}
+.nav-item:hover{ transform:translateY(-1px); }
+.nav-item:focus-visible{ outline:2.5px solid var(--orange-deep); outline-offset:2px; }
+.nav-item .icon{ font-size:19px; line-height:1; }
+.nav-item .label{ font-size:9.5px; font-weight:700; font-family:'Baloo 2', sans-serif; }
+.nav-item.active{ color:#fff; }
+.nav-item.active .label{ font-weight:800; }
 
 .day-banner{
   border-radius:22px;
@@ -524,7 +501,6 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
 }
 
 /* Caminata */
-.tab.walktab{ background:#DFFAF4; color:var(--teal-deep); }
 .walk-banner{
   border-radius:22px; padding:16px 20px; color:#fff;
   box-shadow:var(--shadow); margin-bottom:14px;
@@ -663,7 +639,6 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
 .weekly-summary-item .value{ font-family:'Baloo 2', sans-serif; font-size:17px; font-weight:800; color:var(--ink); margin-top:2px; }
 
 /* Biblioteca */
-.tab.libtab{ background:#F1EBFF; color:var(--violet-deep); }
 .lib-banner{
   border-radius:22px; padding:16px 20px; color:#fff;
   box-shadow:var(--shadow); margin-bottom:16px;
@@ -829,5 +804,3 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
   transition:top .3s ease;
 }
 #blockCelebration.visible{ top:16px; }
-
-@media (max-width:380px){ h1{font-size:26px;} }

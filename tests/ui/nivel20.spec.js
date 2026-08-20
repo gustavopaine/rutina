@@ -182,7 +182,7 @@ test.describe('canción del día editable', () => {
     await gotoApp(page);
     await page.evaluate(() => localStorage.clear());
     await reloadApp(page);
-    await page.getByRole('tab', { name: '🎵 Biblioteca' }).click();
+    await page.getByRole('tab', { name: 'Biblioteca' }).click();
   });
 
   test('la primera vez siembra la rotación con las canciones existentes', async ({ page }) => {
@@ -215,7 +215,7 @@ test.describe('canción del día editable', () => {
     await expect(page.getByText('Tema persistente')).toBeVisible();
 
     await reloadApp(page);
-    await page.getByRole('tab', { name: '🎵 Biblioteca' }).click();
+    await page.getByRole('tab', { name: 'Biblioteca' }).click();
     await expect(page.getByText('Tema persistente')).toBeVisible();
   });
 });

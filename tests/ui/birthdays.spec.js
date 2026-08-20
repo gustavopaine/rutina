@@ -5,7 +5,7 @@ test.beforeEach(async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => localStorage.clear());
   await reloadApp(page);
-  await page.getByRole('tab', { name: '🎂 Cumples' }).click();
+  await page.getByRole('tab', { name: 'Cumples' }).click();
 });
 
 test('agregar, editar y borrar un cumpleaños', async ({ page }) => {
@@ -53,7 +53,7 @@ test.describe('sync con recordatorios activos (Nivel 17)', () => {
     await gotoApp(page);
     await page.evaluate(() => localStorage.clear());
     await reloadApp(page);
-    await page.getByRole('tab', { name: '🎂 Cumples' }).click();
+    await page.getByRole('tab', { name: 'Cumples' }).click();
 
     await page.locator('#bdayNameInput').fill('Sync Test');
     await page.locator('#bdayDayInput').fill('9');
