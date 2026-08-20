@@ -34,6 +34,10 @@ test.describe('hito de racha', () => {
 
     await expect(page.locator('#streakBadge')).toHaveText('🔥 5 días seguidos');
     await expect(page.locator('#blockCelebration')).toHaveClass(/visible/);
+    // El último tilde completa el bloque Y cruza el hito en el mismo tick:
+    // primero se ve la celebración de bloque (una frase), el hito queda
+    // encolado hasta que esa se cierra (Nivel 23: tap-to-dismiss, sin timer).
+    await page.locator('#blockCelebration').click();
     await expect(page.locator('#blockCelebration')).toContainText('5 días seguidos');
   });
 
@@ -48,13 +52,14 @@ test.describe('hito de racha', () => {
     await expect(page.locator('#blockCelebration')).toHaveClass(/visible/);
 
     // El último ítem del día también completa el último bloque: la
-    // celebración del hito puede quedar encolada 3s detrás de la de bloque
-    // (ver "no pisa la celebración..." más abajo) y recién ahí se marca
-    // "celebrado" en localStorage — a propósito, para no perderla si se
-    // recarga durante la demora (ver comentario en celebrateStreakMilestone
-    // en app.js). Hay que esperar a que efectivamente se muestre antes de
-    // recargar, si no el test de "no repite" no prueba lo que dice probar.
-    await expect(page.locator('#blockCelebration')).toContainText('5 días seguidos', { timeout: 5000 });
+    // celebración del hito queda encolada detrás de la de bloque (ver "no
+    // pisa la celebración..." más abajo) y recién se muestra —y se marca
+    // "celebrado" en localStorage— al cerrar esa (Nivel 23: tap-to-dismiss,
+    // sin timer; ver comentario en celebrateStreakMilestone en app.js). Hay
+    // que cerrarla antes de recargar, si no el test de "no repite" no prueba
+    // lo que dice probar.
+    await page.locator('#blockCelebration').click();
+    await expect(page.locator('#blockCelebration')).toContainText('5 días seguidos');
 
     // Recarga: el checklist de hoy persiste (mismo storage), la racha
     // sigue siendo 5 — no debería volver a crear/mostrar el banner.
@@ -133,10 +138,7 @@ test.describe('hito de racha', () => {
     // que la celebración de bloque (como pasa de verdad: el handler del
     // checkbox llama a ambas de forma síncrona vía renderDay()), debe
     // esperar en vez de pisarla. Las dos llamadas van en el MISMO
-    // page.evaluate para reproducir eso — dos evaluate separados dejan un
-    // round-trip de por medio cuya duración no está garantizada, y bajo
-    // carga puede superar los 3s del banner y volver el test flaky sin que
-    // haya ningún bug real.
+    // page.evaluate para reproducir eso.
     await page.evaluate(() => {
       window.celebrateBlockComplete('Mañana');
       window.celebrateStreakMilestone(5);
@@ -146,8 +148,10 @@ test.describe('hito de racha', () => {
     // una frase — se distingue del banner de hito por no tener "días seguidos".)
     await expect(page.locator('#blockCelebration')).toContainText('🎉');
     await expect(page.locator('#blockCelebration')).not.toContainText('días seguidos');
-    // ...y después la reemplaza por la del hito, sin perderla.
-    await expect(page.locator('#blockCelebration')).toContainText('5 días seguidos', { timeout: 5000 });
+    // ...y después la reemplaza por la del hito, sin perderla, al cerrarla
+    // (Nivel 23: tap-to-dismiss, sin timer).
+    await page.locator('#blockCelebration').click();
+    await expect(page.locator('#blockCelebration')).toContainText('5 días seguidos');
   });
 
   test('un llamado re-entrante mientras el hito está encolado no duplica la celebración', async ({ page }) => {
@@ -155,23 +159,22 @@ test.describe('hito de racha', () => {
     // encolado (banner de bloque todavía visible, ver test anterior), el
     // hito todavía no se marcó "celebrado" en localStorage (eso pasa recién
     // dentro de show()) — así que un segundo llamado con la misma racha,
-    // disparado por cualquier interacción dentro de esos 3s (destildar y
-    // volver a tildar, agregar una tarea, etc.), no debería encolar un
-    // segundo show() y duplicar el confetti/banner/anuncio.
+    // disparado por cualquier interacción mientras el banner sigue abierto
+    // (destildar y volver a tildar, agregar una tarea, etc.), no debería
+    // encolar un segundo show() y duplicar el confetti/banner/anuncio.
     await page.evaluate(() => window.celebrateStreakMilestone(0));
 
     const announceCount = await page.evaluate(() => {
-      return new Promise((resolve) => {
-        let count = 0;
-        const original = window.announce;
-        window.announce = (...args) => { count++; return original.apply(window, args); };
+      let count = 0;
+      const original = window.announce;
+      window.announce = (...args) => { count++; return original.apply(window, args); };
 
-        window.celebrateBlockComplete('Mañana'); // ocupa el banner
-        window.celebrateStreakMilestone(5); // se encola (banner ocupado)
-        window.celebrateStreakMilestone(5); // re-entrante: no debería encolar otro
+      window.celebrateBlockComplete('Mañana'); // ocupa el banner
+      window.celebrateStreakMilestone(5); // se encola (banner ocupado)
+      window.celebrateStreakMilestone(5); // re-entrante: no debería encolar otro
+      window.dismissCelebrationBanner(); // Nivel 23: dispara la encolada, como si el usuario la tocara
 
-        setTimeout(() => resolve(count), 3500);
-      });
+      return count;
     });
 
     // 1 anuncio de celebrateBlockComplete() + 1 del hito = 2. Si el llamado

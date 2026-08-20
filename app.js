@@ -412,7 +412,11 @@ function countDone(dayKey){
 const STREAK_MILESTONES = [5, 10, 30, 60, 100];
 const STREAK_MILESTONE_KEY = 'veronica-last-streak-milestone';
 let streakCelebrationPending = false;
-let blockCelebrationTimeout = null;
+// Nivel 23: la celebración ya no se cierra sola con un timer — queda visible
+// hasta que se toca/activa (ver dismissCelebrationBanner()). Si un hito de
+// racha queda encolado porque el banner de bloque ya está mostrándose, esta
+// variable guarda qué mostrar recién cuando esa se cierre.
+let blockCelebrationDismissCallback = null;
 
 function renderStreakBadge(){
   const el = document.getElementById('streakBadge');
@@ -2038,11 +2042,16 @@ async function renderMotivationalPhrasesSection(){
 // de pantalla. Dispara solo cuando se tilda el último ítem del bloque (ver
 // el handler de checkbox en renderDay()), nunca al desmarcar ni en un render.
 // Compartido con el hito de racha (Nivel 20) vía showCelebrationBanner() —
-// mismo banner (#blockCelebration), mismo patrón de confetti/timeout/anuncio.
-// blockCelebrationTimeout está declarado arriba, junto a STREAK_MILESTONES
-// (ver esa nota) — showCelebrationBanner() es alcanzable desde el primer
-// renderDay() del boot vía celebrateStreakMilestone(), así que no puede
-// vivir acá abajo sin caer en temporal dead zone en ese primer render.
+// mismo banner (#blockCelebration), mismo patrón de confetti/anuncio.
+// blockCelebrationDismissCallback está declarado arriba, junto a
+// STREAK_MILESTONES (ver esa nota) — showCelebrationBanner() es alcanzable
+// desde el primer renderDay() del boot vía celebrateStreakMilestone(), así
+// que no puede vivir acá abajo sin caer en temporal dead zone en ese primer
+// render.
+//
+// Nivel 23: antes se cerraba sola a los 3s — muy poco tiempo para leer una
+// frase motivacional completa. Ahora queda visible sin timer, hasta que se
+// toca o se activa con teclado (dismissCelebrationBanner(), más abajo).
 function showCelebrationBanner(text, announceText){
   const w = window.innerWidth;
   [0.2, 0.4, 0.6, 0.8].forEach((frac, i) => {
@@ -2054,14 +2063,28 @@ function showCelebrationBanner(text, announceText){
     banner = document.createElement('div');
     banner.id = 'blockCelebration';
     banner.setAttribute('role', 'status');
+    banner.tabIndex = 0;
+    banner.addEventListener('click', dismissCelebrationBanner);
+    banner.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); dismissCelebrationBanner(); }
+    });
     document.body.appendChild(banner);
   }
   banner.textContent = text;
   banner.classList.add('visible');
-  clearTimeout(blockCelebrationTimeout);
-  blockCelebrationTimeout = setTimeout(() => banner.classList.remove('visible'), 3000);
 
   announce(announceText);
+}
+
+// Cierra la celebración visible (tap, Enter/Espacio con teclado) y, si había
+// un hito de racha esperando su turno porque el banner de bloque ya estaba
+// ocupado (ver celebrateStreakMilestone() más abajo), lo muestra recién acá.
+function dismissCelebrationBanner(){
+  const banner = document.getElementById('blockCelebration');
+  if (banner) banner.classList.remove('visible');
+  const next = blockCelebrationDismissCallback;
+  blockCelebrationDismissCallback = null;
+  if (next) next();
 }
 
 // Nivel 23: el texto genérico fijo ("¡Mañana completa!") se reemplaza por
@@ -2096,8 +2119,8 @@ function celebrateBlockComplete(blockTitle){
 // corte real de racha. Solo se trata como corte real (y se resetea el hito
 // para poder volver a celebrarlo) cuando cambió el día calendario Y la
 // racha bajó — nunca dentro del mismo día. streakCelebrationPending y
-// blockCelebrationTimeout (usados más abajo, este último compartido con
-// celebrateBlockComplete()) están declarados arriba, junto a
+// blockCelebrationDismissCallback (usados más abajo, este último compartido
+// con celebrateBlockComplete()) están declarados arriba, junto a
 // STREAK_MILESTONES — ver esa nota.
 function celebrateStreakMilestone(streak){
   const todayIso = isoDate(new Date());
@@ -2127,17 +2150,18 @@ function celebrateStreakMilestone(streak){
 
   // El hito se marca "celebrado" en localStorage recién cuando la
   // celebración se muestra de verdad (dentro de show()), no antes: si se
-  // marcara acá arriba y el usuario cierra o recarga durante la demora de
-  // abajo (banner de bloque todavía visible), quedaría marcado como
+  // marcara acá arriba y el usuario cierra o recarga mientras el banner de
+  // bloque todavía está visible (ver abajo), quedaría marcado como
   // celebrado sin haberse mostrado nunca — se perdería para siempre.
   //
   // Por eso mismo el localStorage todavía no refleja este hito mientras
   // show() está encolado (ver abajo) — así que un segundo llamado de
-  // celebrateStreakMilestone() durante esa demora (ej. destildar/tildar de
-  // nuevo dentro de los 3s) volvería a detectar el mismo hito como
-  // "recién alcanzado" y encolaría un show() duplicado (confetti/banner/
-  // announce() dos veces). streakCelebrationPending evita eso: mientras
-  // haya un show() ya encolado, un llamado re-entrante no encola otro.
+  // celebrateStreakMilestone() mientras el banner de bloque sigue abierto
+  // (ej. destildar/tildar de nuevo antes de cerrarlo) volvería a detectar el
+  // mismo hito como "recién alcanzado" y encolaría un show() duplicado
+  // (confetti/banner/announce() dos veces). streakCelebrationPending evita
+  // eso: mientras haya un show() ya encolado, un llamado re-entrante no
+  // encola otro.
   const show = () => {
     streakCelebrationPending = false;
     localStorage.setItem(STREAK_MILESTONE_KEY, JSON.stringify({ value: milestone, date: todayIso }));
@@ -2146,12 +2170,13 @@ function celebrateStreakMilestone(streak){
 
   // Si el banner ya está mostrando otra celebración (ej. completaste el
   // último bloque del día en el mismo tilde que cruzó el hito), esperar a
-  // que termine en vez de pisarla — así no se pierde ninguna de las dos.
+  // que la cierren (tap/teclado, ver dismissCelebrationBanner()) en vez de
+  // pisarla — así no se pierde ninguna de las dos.
   const existingBanner = document.getElementById('blockCelebration');
   if (existingBanner && existingBanner.classList.contains('visible')){
     if (streakCelebrationPending) return;
     streakCelebrationPending = true;
-    setTimeout(show, 3000);
+    blockCelebrationDismissCallback = show;
   } else {
     show();
   }

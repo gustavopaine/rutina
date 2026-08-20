@@ -125,6 +125,38 @@ test.describe('celebración de bloque usa una frase del banco', () => {
   });
 });
 
+test.describe('celebración de bloque: se cierra tocándola, sin timer', () => {
+  test.beforeEach(async ({ page }) => {
+    await gotoApp(page);
+    await page.evaluate(() => localStorage.clear());
+    await reloadApp(page);
+  });
+
+  test('queda visible más de lo que duraba el viejo timer de 3s, hasta que se toca', async ({ page }) => {
+    const checkboxes = page.locator('.block').first().locator('.item .checkbox');
+    const total = await checkboxes.count();
+    for (let i = 0; i < total; i++) await checkboxes.nth(i).click();
+
+    await expect(page.locator('#blockCelebration')).toHaveClass(/visible/);
+    await page.waitForTimeout(4000);
+    await expect(page.locator('#blockCelebration')).toHaveClass(/visible/);
+
+    await page.locator('#blockCelebration').click();
+    await expect(page.locator('#blockCelebration')).not.toHaveClass(/visible/);
+  });
+
+  test('también se puede cerrar con teclado (Enter o Espacio)', async ({ page }) => {
+    const checkboxes = page.locator('.block').first().locator('.item .checkbox');
+    const total = await checkboxes.count();
+    for (let i = 0; i < total; i++) await checkboxes.nth(i).click();
+
+    await expect(page.locator('#blockCelebration')).toHaveClass(/visible/);
+    await page.locator('#blockCelebration').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#blockCelebration')).not.toHaveClass(/visible/);
+  });
+});
+
 test.describe('exportar / importar incluye nombre y frases', () => {
   test.beforeEach(async ({ page }) => {
     await gotoApp(page);
