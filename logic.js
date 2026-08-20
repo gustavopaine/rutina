@@ -205,6 +205,145 @@
     return computeStreak(dates, todayIso, todayCompleted);
   }
 
+  // ---- Calendario Menstrual (Nivel 21) ----
+  // Ciclo: { id, startDate: "YYYY-MM-DD", endDate: "YYYY-MM-DD"|null }.
+  // endDate null = período en curso (sin cerrar). Comparación de fechas ISO
+  // con operadores de string (<, >=) en vez de convertir a Date: funciona
+  // porque el formato YYYY-MM-DD ordena igual lexicográfica y
+  // cronológicamente, y evita reintroducir problemas de huso horario/DST
+  // que ya se evitaron en el resto del archivo (ver dayOfYear()).
+  const CYCLE_DEFAULT_LENGTH_DAYS = 28;
+  const PERIOD_DEFAULT_LENGTH_DAYS = 5;
+  const LUTEAL_PHASE_DAYS = 14; // días entre ovulación y el próximo período, ~constante
+  const FERTILE_WINDOW_BEFORE_OVULATION_DAYS = 5;
+  const FERTILE_WINDOW_AFTER_OVULATION_DAYS = 1;
+
+  function parseIsoDate(iso){
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function addDaysIso(iso, days){
+    const d = parseIsoDate(iso);
+    d.setDate(d.getDate() + days);
+    return isoDate(d);
+  }
+
+  function daysBetweenIso(aIso, bIso){
+    return Math.round((parseIsoDate(bIso) - parseIsoDate(aIso)) / 86400000);
+  }
+
+  // La entrada con el startDate más reciente — no asume que `history` venga
+  // ordenado (puede no estarlo si se cargaron ciclos viejos después de los
+  // nuevos, ver Risks del spec de Nivel 21).
+  function mostRecentCycleEntry(history){
+    if (!history || !history.length) return null;
+    return [...history].sort((a, b) => (a.startDate < b.startDate ? 1 : -1))[0];
+  }
+
+  // Duración derivada de una entrada cerrada (endDate-startDate+1 días,
+  // inclusive). null si sigue abierta — se exporta para que app.js no
+  // duplique este cálculo al mostrar el historial.
+  function periodLengthDays(entry){
+    if (!entry.endDate) return null;
+    return daysBetweenIso(entry.startDate, entry.endDate) + 1; // inclusive
+  }
+
+  // Promedio de duración de período sobre los `maxCycles` ciclos CERRADOS
+  // más recientes. Sin ningún ciclo cerrado todavía, usa el default clínico
+  // (5 días) en vez de no mostrar nada — decidido con el usuario.
+  function averagePeriodLengthDays(history, maxCycles = 6){
+    const closed = (history || [])
+      .filter(e => e.endDate)
+      .sort((a, b) => (a.startDate < b.startDate ? 1 : -1))
+      .slice(0, maxCycles);
+    if (!closed.length) return PERIOD_DEFAULT_LENGTH_DAYS;
+    return closed.reduce((sum, e) => sum + periodLengthDays(e), 0) / closed.length;
+  }
+
+  // Promedio de duración de ciclo: diferencia en días entre startDate
+  // consecutivos (ordenados cronológicamente), sobre los `maxCycles` gaps
+  // más recientes. Con menos de 2 entradas no hay ningún gap que promediar,
+  // usa el default clínico (28 días) — mismo criterio que arriba.
+  function averageCycleLengthDays(history, maxCycles = 6){
+    const sorted = [...(history || [])].sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
+    const gaps = [];
+    for (let i = 1; i < sorted.length; i++){
+      gaps.push(daysBetweenIso(sorted[i - 1].startDate, sorted[i].startDate));
+    }
+    if (!gaps.length) return CYCLE_DEFAULT_LENGTH_DAYS;
+    const recent = gaps.slice(-maxCycles);
+    return recent.reduce((sum, g) => sum + g, 0) / recent.length;
+  }
+
+  // Día actual del ciclo (1 = el propio día de inicio), contado desde la
+  // entrada más reciente. null sin ningún ciclo registrado todavía — no hay
+  // fecha ancla de la cual contar.
+  function currentCycleDay(history, now){
+    const entry = mostRecentCycleEntry(history);
+    if (!entry) return null;
+    return daysBetweenIso(entry.startDate, isoDate(now)) + 1;
+  }
+
+  // Fecha estimada del próximo período: inicio de la entrada más reciente +
+  // promedio de duración de ciclo, avanzando de a un ciclo completo hasta
+  // llegar a una fecha >= hoy. null sin historial (no hay desde dónde
+  // proyectar) — a diferencia de los promedios de arriba, acá SÍ hace falta
+  // al menos 1 ciclo cargado (el "0 ciclos" del spec es un caso distinto de
+  // "1 ciclo sin promedio propio todavía", que sí devuelve una fecha usando
+  // el default de averageCycleLengthDays).
+  //
+  // Sin el avance por ciclos, un historial desactualizado (nada cargado
+  // hace varios meses) proyectaría una única vez desde el último inicio y
+  // devolvería una fecha ya pasada, en vez de la próxima ocurrencia real —
+  // "próximo período" tiene que ser relativo a `now`, no solo al último
+  // dato cargado (mismo criterio que el resto de las funciones de este
+  // archivo, que sí usan `now`).
+  function predictNextPeriod(history, now){
+    const entry = mostRecentCycleEntry(history);
+    if (!entry) return null;
+    const avgCycle = Math.max(1, Math.round(averageCycleLengthDays(history))); // mínimo 1: evita loop infinito con datos degenerados
+    const todayIso = isoDate(now);
+    let next = addDaysIso(entry.startDate, avgCycle);
+    while (next < todayIso){
+      next = addDaysIso(next, avgCycle);
+    }
+    return next;
+  }
+
+  // Ventana fértil estimada del ciclo actual: ovulación ≈ próximo período −
+  // 14 días (fase lútea, se mantiene razonablemente constante aunque el
+  // ciclo completo varíe); ventana = [ovulación−5, ovulación+1], mismo rango
+  // de 6 días que usan Flo/Clue. Estimación de calendario aproximada, no un
+  // método anticonceptivo ni de fertilidad clínico.
+  function predictFertileWindow(history, now){
+    const next = predictNextPeriod(history, now);
+    if (!next) return null;
+    const ovulation = addDaysIso(next, -LUTEAL_PHASE_DAYS);
+    return {
+      start: addDaysIso(ovulation, -FERTILE_WINDOW_BEFORE_OVULATION_DAYS),
+      end: addDaysIso(ovulation, FERTILE_WINDOW_AFTER_OVULATION_DAYS),
+    };
+  }
+
+  // Fase actual: 'menstruacion' | 'fertil' | 'otro', o null sin historial.
+  // Mientras la entrada más reciente siga abierta (endDate null) se
+  // considera que el período sigue en curso indefinidamente, sin importar
+  // cuánto tiempo pasó desde que empezó — se cierra recién cuando el
+  // usuario le agrega una fecha de fin (ver spec, "Ya decididas").
+  function cyclePhase(history, now){
+    const entry = mostRecentCycleEntry(history);
+    if (!entry) return null;
+    const todayIso = isoDate(now);
+    const inPeriod = entry.endDate
+      ? (todayIso >= entry.startDate && todayIso <= entry.endDate)
+      : (todayIso >= entry.startDate);
+    if (inPeriod) return 'menstruacion';
+    const window = predictFertileWindow(history, now);
+    if (window && todayIso >= window.start && todayIso <= window.end) return 'fertil';
+    return 'otro';
+  }
+
   function geolocationErrorMessage(err){
     if (err.code === err.PERMISSION_DENIED){
       return 'No diste permiso de ubicación. Revisá los permisos de este sitio en la configuración del navegador o del celular y volvé a intentar.';
@@ -218,7 +357,7 @@
     return 'No pude acceder a la ubicación. Revisá los permisos del navegador.';
   }
 
-  const api = { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays, songOfTheDay, clothingSuggestion, mondayOfWeek };
+  const api = { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays, songOfTheDay, clothingSuggestion, mondayOfWeek, averagePeriodLengthDays, averageCycleLengthDays, currentCycleDay, predictNextPeriod, predictFertileWindow, cyclePhase, periodLengthDays };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RutinaLogic = api;
 

@@ -27,6 +27,11 @@ rutina semanal de Verónica, con tema de cuarteto (Euge Quevedo). Incluye:
   [Recordatorios push](#recordatorios-push) más abajo. Es la única parte de
   la app con una piecita server-side (un Worker de Cloudflare, gratis), todo
   lo demás sigue sin backend.
+- **Calendario Menstrual**: pestaña 🩸 Ciclo — registrar inicio/fin de cada
+  período, día actual del ciclo, fase (menstruación / ventana fértil /
+  otro), próxima fecha estimada de período y de ventana fértil, y
+  promedios de duración sobre el historial cargado. Dato sensible: 100%
+  local, nunca se sincroniza al Worker bajo ninguna circunstancia.
 
 ## Cómo abrirla
 
@@ -110,6 +115,10 @@ cloudflare/            Worker que manda los recordatorios push y el aviso de
   (Nivel 20 — antes la canción del día era fija, hardcodeada en `app.js`).
   Los **accesos rápidos** fijos (Euge Quevedo, etc.) siguen fijos, se
   editan en la constante `QUICK_LINKS` en `app.js`.
+- **Calendario Menstrual**: se registra, edita y borra desde la propia
+  pestaña "🩸 Ciclo" (botón "Inicio del período" para el registro rápido,
+  ✏️/✕ para editar/borrar cualquier entrada del historial). Nivel 21, dato
+  sensible — 100% local, nunca se sincroniza al Worker.
 
 ## Tests automáticos
 
@@ -161,11 +170,14 @@ tener el historial ni lo tildado. Las excepciones son la suscripción a
 recordatorios push y, mientras esté activa, la lista de cumpleaños (ver más
 abajo): esas sí viven en un servidor, porque sin eso no hay forma de que el
 aviso llegue con la app cerrada — pero ni el checklist, ni el contenido de
-la rutina, ni el historial de caminatas viajan nunca fuera del dispositivo.
+la rutina, ni el historial de caminatas, ni el Calendario Menstrual viajan
+nunca fuera del dispositivo (este último, nunca bajo ninguna circunstancia
+— ver Nivel 21 más abajo).
 
 Para no perder esos datos, usá los botones **⬇️ Exportar datos** / **⬆️
 Importar datos** al pie de la app: exportan/restauran un archivo `.json` con
-el checklist, el historial de caminatas, la biblioteca y los cumpleaños.
+el checklist, el historial de caminatas, la biblioteca, los cumpleaños y el
+Calendario Menstrual.
 
 ## Recordatorios push
 
@@ -407,3 +419,14 @@ El proyecto avanza por niveles definidos junto con el usuario:
   con las canciones guardadas en `localStorage`. Ver
   `docs/specs/2026-08-19-nivel20-hito-racha-cancion-editable.md` para el
   diseño completo.
+- **Nivel 21** — Calendario Menstrual: nueva pestaña 🩸 Ciclo con el mismo
+  patrón robusto de Cumpleaños/Caminata/Biblioteca (registrar, editar,
+  borrar, guardado en `localStorage`). Botón "Inicio del período" para
+  registrar rápido; predicciones (día de ciclo, próximo período, ventana
+  fértil) y promedios de duración calculados con funciones puras nuevas
+  en `logic.js`, testeadas con TDD. Dato sensible (salud): 100% local, sin
+  ninguna sincronización al Worker — a diferencia de Cumpleaños, verificado
+  con un test de Playwright dedicado que falla si sale una sola request de
+  red hacia el Worker durante el flujo completo. Ver
+  `docs/specs/2026-08-20-nivel21-calendario-menstrual.md` para el diseño
+  completo.

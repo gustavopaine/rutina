@@ -19,6 +19,13 @@ const {
   walkStreakDays,
   songOfTheDay,
   clothingSuggestion,
+  averagePeriodLengthDays,
+  averageCycleLengthDays,
+  currentCycleDay,
+  predictNextPeriod,
+  predictFertileWindow,
+  cyclePhase,
+  periodLengthDays,
 } = require('../logic.js');
 
 function toBase64Url(str){
@@ -312,4 +319,139 @@ test('clothingSuggestion: combina lluvia y viento si aplican los dos', () => {
     clothingSuggestion(5, 2, 40),
     'Abrigate bien 🧥 · ☔ Llevá paraguas · 💨 Hace viento, algo que no vuele'
   );
+});
+
+// ---- Nivel 21: Calendario Menstrual ----
+// Fixture de 4 ciclos con gap constante de 28 días entre inicios, para que
+// el promedio no dependa de qué entradas entraron en la ventana de
+// maxCycles. Los primeros 3 están cerrados (endDate); el 4° queda abierto
+// (endDate: null) a propósito, para testear el "período en curso".
+const CYCLE_A = { id: 'a', startDate: '2026-05-01', endDate: '2026-05-05' }; // 5 días
+const CYCLE_B = { id: 'b', startDate: '2026-05-29', endDate: '2026-06-02' }; // 5 días, gap A->B = 28
+const CYCLE_C = { id: 'c', startDate: '2026-06-26', endDate: '2026-07-01' }; // 6 días, gap B->C = 28
+const CYCLE_D_OPEN = { id: 'd', startDate: '2026-07-24', endDate: null };    // en curso, gap C->D = 28
+const CLOSED_HISTORY = [CYCLE_A, CYCLE_B, CYCLE_C];
+const FULL_HISTORY = [CYCLE_A, CYCLE_B, CYCLE_C, CYCLE_D_OPEN];
+
+test('averagePeriodLengthDays: sin ciclos cerrados da el default clínico (5 días)', () => {
+  assert.equal(averagePeriodLengthDays([]), 5);
+  assert.equal(averagePeriodLengthDays([CYCLE_D_OPEN]), 5);
+});
+
+test('averagePeriodLengthDays: promedia la duración derivada (endDate-startDate+1) de los cerrados', () => {
+  // (5 + 5 + 6) / 3 = 5.333...
+  assert.ok(Math.abs(averagePeriodLengthDays(CLOSED_HISTORY) - 16/3) < 1e-9);
+});
+
+test('averagePeriodLengthDays: respeta maxCycles, toma los más recientes primero', () => {
+  assert.equal(averagePeriodLengthDays(CLOSED_HISTORY, 2), (5 + 6) / 2); // B y C, no A
+});
+
+test('averageCycleLengthDays: con menos de 2 ciclos da el default clínico (28 días)', () => {
+  assert.equal(averageCycleLengthDays([]), 28);
+  assert.equal(averageCycleLengthDays([CYCLE_A]), 28);
+});
+
+test('averageCycleLengthDays: promedia los gaps entre startDate consecutivos', () => {
+  assert.equal(averageCycleLengthDays(FULL_HISTORY), 28); // A->B->C->D, los 3 gaps son 28
+});
+
+test('averageCycleLengthDays: no depende del orden en que vienen las entradas en el array', () => {
+  const scrambled = [CYCLE_D_OPEN, CYCLE_A, CYCLE_C, CYCLE_B];
+  assert.equal(averageCycleLengthDays(scrambled), averageCycleLengthDays(FULL_HISTORY));
+});
+
+test('averageCycleLengthDays: respeta maxCycles sobre los gaps más recientes', () => {
+  const varied = [
+    { id: '1', startDate: '2026-01-01', endDate: '2026-01-05' },
+    { id: '2', startDate: '2026-02-01', endDate: '2026-02-05' }, // gap 31
+    { id: '3', startDate: '2026-03-01', endDate: '2026-03-05' }, // gap 28
+    { id: '4', startDate: '2026-03-27', endDate: null },         // gap 26
+  ];
+  assert.equal(averageCycleLengthDays(varied, 2), (28 + 26) / 2); // últimos 2 gaps, no el de 31
+});
+
+test('currentCycleDay: sin historial da null', () => {
+  assert.equal(currentCycleDay([], new Date(2026, 7, 1)), null);
+});
+
+test('currentCycleDay: día 1 es el propio día de inicio, cuenta desde la entrada más reciente', () => {
+  assert.equal(currentCycleDay(FULL_HISTORY, new Date(2026, 6, 24)), 1); // mismo día del inicio de D
+  assert.equal(currentCycleDay(FULL_HISTORY, new Date(2026, 7, 1)), 9);  // 8 días después -> día 9
+});
+
+test('currentCycleDay: usa la entrada más reciente aunque el array no venga ordenado', () => {
+  const scrambled = [CYCLE_D_OPEN, CYCLE_A, CYCLE_C, CYCLE_B];
+  assert.equal(currentCycleDay(scrambled, new Date(2026, 7, 1)), 9);
+});
+
+test('predictNextPeriod: sin historial da null (no hay fecha ancla)', () => {
+  assert.equal(predictNextPeriod([], new Date(2026, 7, 1)), null);
+});
+
+test('predictNextPeriod: con un solo ciclo usa el default de 28 días desde su inicio', () => {
+  assert.equal(predictNextPeriod([CYCLE_A], new Date(2026, 4, 10)), '2026-05-29');
+});
+
+test('predictNextPeriod: inicio de la entrada más reciente + promedio real de ciclo', () => {
+  // D empezó 2026-07-24, promedio de ciclo real (gaps A-B-C-D) = 28
+  assert.equal(predictNextPeriod(FULL_HISTORY, new Date(2026, 7, 1)), '2026-08-21');
+});
+
+test('predictNextPeriod: con historial desactualizado (now muy posterior al último ciclo), avanza ciclo a ciclo hasta llegar a una fecha >= hoy', () => {
+  // Último ciclo cerrado el 2026-06-26..07-01, sin nada cargado desde
+  // entonces. "now" es 3 meses después: una sola proyección (start + 28)
+  // caería muy en el pasado — debe seguir sumando avgCycle hasta alcanzar
+  // o superar "now", no congelarse en una fecha vieja.
+  const now = new Date(2026, 9, 15); // 2026-10-15
+  const next = predictNextPeriod(CLOSED_HISTORY, now);
+  assert.ok(next >= '2026-10-15', `esperaba una fecha >= hoy, dio ${next}`);
+  // Debe seguir siendo un múltiplo de 28 días desde el inicio del último
+  // ciclo (2026-06-26), no una fecha arbitraria.
+  const start = new Date(2026, 5, 26);
+  const got = new Date(next.slice(0,4), next.slice(5,7)-1, next.slice(8,10));
+  const diffDays = Math.round((got - start) / 86400000);
+  assert.equal(diffDays % 28, 0, `esperaba un múltiplo de 28 días desde el inicio, dio ${diffDays}`);
+});
+
+test('predictFertileWindow: sin historial da null', () => {
+  assert.equal(predictFertileWindow([], new Date(2026, 7, 1)), null);
+});
+
+test('predictFertileWindow: ventana de 6 días terminando en la ovulación (próximo período - 14)', () => {
+  // próximo período (desde CLOSED_HISTORY) = 2026-06-26 + 28 = 2026-07-24
+  // ovulación = 2026-07-24 - 14 = 2026-07-10; ventana = 07-05..07-11
+  const window = predictFertileWindow(CLOSED_HISTORY, new Date(2026, 6, 1));
+  assert.deepEqual(window, { start: '2026-07-05', end: '2026-07-11' });
+});
+
+test('cyclePhase: sin historial da null', () => {
+  assert.equal(cyclePhase([], new Date(2026, 7, 1)), null);
+});
+
+test('cyclePhase: menstruación mientras la entrada más reciente sigue abierta (sin endDate)', () => {
+  // D empieza 2026-07-24 sin cerrar todavía; muy lejos en el tiempo igual sigue "en período"
+  assert.equal(cyclePhase(FULL_HISTORY, new Date(2026, 6, 26)), 'menstruacion');
+  assert.equal(cyclePhase(FULL_HISTORY, new Date(2026, 8, 1)), 'menstruacion');
+});
+
+test('cyclePhase: menstruación dentro del rango cerrado de la entrada más reciente', () => {
+  assert.equal(cyclePhase(CLOSED_HISTORY, new Date(2026, 5, 28)), 'menstruacion'); // dentro de 06-26..07-01
+});
+
+test('cyclePhase: fértil dentro de la ventana estimada', () => {
+  assert.equal(cyclePhase(CLOSED_HISTORY, new Date(2026, 6, 8)), 'fertil'); // 2026-07-08, dentro de 07-05..07-11
+});
+
+test('cyclePhase: otro fuera de menstruación y de la ventana fértil', () => {
+  assert.equal(cyclePhase(CLOSED_HISTORY, new Date(2026, 6, 15)), 'otro'); // 2026-07-15
+});
+
+test('periodLengthDays: entrada cerrada da la duración inclusive (endDate-startDate+1)', () => {
+  assert.equal(periodLengthDays(CYCLE_A), 5); // 05-01..05-05
+  assert.equal(periodLengthDays(CYCLE_C), 6); // 06-26..07-01
+});
+
+test('periodLengthDays: entrada abierta (sin endDate) da null', () => {
+  assert.equal(periodLengthDays(CYCLE_D_OPEN), null);
 });

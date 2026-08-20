@@ -14,6 +14,7 @@ const DAY_COLORS = {
   cumples:  ['#FF4FA0', '#8B6BFF'],
   caminata: ['#2FD9C4', '#14B39E'],
   biblioteca: ['#A487F5', '#8360E8'],
+  ciclo: ['#FF5FA8', '#E83D8C'],
 };
 
 const DEFAULT_DATA = {
@@ -162,7 +163,7 @@ const DEFAULT_DATA = {
 };
 
 const ORDER = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
-const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays, songOfTheDay, clothingSuggestion, mondayOfWeek } = window.RutinaLogic;
+const { haversine, formatDuration, daysUntilInfo, sortBirthdaysByNextOccurrence, todayKey, isoDate, geolocationErrorMessage, escapeHtml, urlBase64ToUint8Array, computeStreak, weeklyForgivesRemaining, STREAK_FORGIVE_PER_WEEK, totalWalkDistanceKm, bestWalkDistanceKm, walkDistanceThisWeek, walkDistanceThisMonth, walkStreakDays, songOfTheDay, clothingSuggestion, mondayOfWeek, averagePeriodLengthDays, averageCycleLengthDays, currentCycleDay, predictNextPeriod, predictFertileWindow, cyclePhase, periodLengthDays } = window.RutinaLogic;
 
 // ---- Anuncios puntuales para lectores de pantalla (no releer todo el panel) ----
 function announce(message){
@@ -554,7 +555,7 @@ async function deleteBirthday(id){
   renderBirthdays();
 }
 
-const TABS = [...ORDER, "caminata", "biblioteca", "cumples"];
+const TABS = [...ORDER, "caminata", "biblioteca", "cumples", "ciclo"];
 
 function renderTabs(){
   const tabs = document.getElementById('tabs');
@@ -572,6 +573,9 @@ function renderTabs(){
     if (key === 'cumples'){
       btn.className = 'tab bdaytab' + (key===current?' active':'');
       btn.textContent = '🎂 Cumples';
+    } else if (key === 'ciclo'){
+      btn.className = 'tab cycletab' + (key===current?' active':'');
+      btn.textContent = '🩸 Ciclo';
     } else if (key === 'caminata'){
       btn.className = 'tab walktab' + (key===current?' active':'');
       btn.textContent = '📍 Caminata';
@@ -594,6 +598,7 @@ function renderTabs(){
       current = key; renderTabs();
       addingToBlock = null; editingItemId = null;
       if (current==='cumples') renderBirthdays();
+      else if (current==='ciclo') renderCycle();
       else if (current==='caminata') renderWalk();
       else if (current==='biblioteca') renderLibrary();
       else renderDay();
@@ -736,6 +741,244 @@ async function renderBirthdays(){
     };
     wrap.appendChild(row);
   });
+}
+
+// ---- Calendario Menstrual (Nivel 21) ----
+// Dato sensible (salud): 100% local, nunca sincroniza al Worker de
+// Cloudflare bajo ninguna circunstancia — a diferencia de Cumpleaños
+// (arriba), que sí sincroniza para el push de recordatorio.
+// loadCycleHistory()/saveCycleHistory() son las únicas dos funciones que
+// tocan esta clave de localStorage y ninguna hace fetch (ver spec de
+// Nivel 21 y tests/ui/cycle.spec.js, que lo verifica activamente).
+const CYCLE_STORAGE_KEY = 'veronica-cycle-history';
+let cycleHistory = [];
+let editingCycleId = null;
+
+async function loadCycleHistory(){
+  try{
+    const raw = localStorage.getItem(CYCLE_STORAGE_KEY);
+    cycleHistory = raw ? JSON.parse(raw) : [];
+  }catch(e){ cycleHistory = []; }
+}
+async function saveCycleHistory(){
+  try{ localStorage.setItem(CYCLE_STORAGE_KEY, JSON.stringify(cycleHistory)); }
+  catch(e){ console.error('No se pudo guardar el calendario menstrual', e); showSaveError('No se pudo guardar el cambio en el calendario menstrual.'); }
+}
+
+function openCycleEntry(){
+  return cycleHistory.find(e => !e.endDate) || null;
+}
+
+// Crea una entrada abierta (startDate=hoy, endDate=null). Nunca permite dos
+// entradas abiertas a la vez — romperían "día actual del ciclo"/las
+// predicciones, que asumen una sola entrada "en curso" por vez. Cerrar el
+// período es editar esta misma entrada para agregarle fecha de fin (ver
+// editCycleEntry()), no un botón aparte.
+async function startPeriodToday(){
+  if (openCycleEntry()) return;
+  cycleHistory.push({ id: Date.now().toString(), startDate: isoDate(new Date()), endDate: null });
+  await saveCycleHistory();
+  renderCycle();
+}
+
+function editCycleEntry(id){
+  editingCycleId = id;
+  renderCycle();
+}
+
+async function submitCycleForm(){
+  const startDate = document.getElementById('cycleStartInput').value;
+  const endDate = document.getElementById('cycleEndInput').value || null;
+  if (!startDate) { alert('Completá al menos la fecha de inicio.'); return; }
+  if (endDate && endDate < startDate) { alert('La fecha de fin no puede ser anterior a la de inicio.'); return; }
+  // El guard de "no dos entradas abiertas a la vez" aplica tanto al agregar
+  // como al editar: sin esto, editar una entrada YA CERRADA para borrarle
+  // la fecha de fin la reabre igual, y si ya había otra entrada distinta
+  // en curso quedan dos abiertas al mismo tiempo — openCycleEntry() (usado
+  // por el botón de cierre rápido) y mostRecentCycleEntry() en logic.js
+  // (usado por currentCycleDay()/predictNextPeriod()/cyclePhase()) podrían
+  // entonces apuntar a entradas distintas, mostrando un día de ciclo y una
+  // fase que no corresponden a la entrada que el botón realmente cierra.
+  if (!endDate){
+    const otherOpen = openCycleEntry();
+    if (otherOpen && otherOpen.id !== editingCycleId){
+      alert('Ya hay un período en curso sin cerrar. Cerralo antes de dejar esta entrada sin fecha de fin.');
+      return;
+    }
+  }
+  if (editingCycleId){
+    const entry = cycleHistory.find(e => e.id === editingCycleId);
+    if (entry){ entry.startDate = startDate; entry.endDate = endDate; }
+    editingCycleId = null;
+  } else {
+    cycleHistory.push({ id: Date.now().toString(), startDate, endDate });
+  }
+  await saveCycleHistory();
+  renderCycle();
+}
+
+async function deleteCycleEntry(id){
+  cycleHistory = cycleHistory.filter(e => e.id !== id);
+  if (editingCycleId === id) editingCycleId = null;
+  await saveCycleHistory();
+  renderCycle();
+}
+
+const CYCLE_PHASE_LABEL = { menstruacion: '🩸 Menstruación', fertil: '🌱 Ventana fértil', otro: '🗓️ Otro' };
+
+function formatCycleDate(iso){
+  if (!iso) return '—';
+  const [, m, d] = iso.split('-').map(Number);
+  return `${d} ${MONTH_NAMES[m - 1].slice(0, 3)}`;
+}
+
+function renderCycleHistoryList(){
+  const el = document.getElementById('cycleItemsList');
+  if (!el) return;
+  if (!cycleHistory.length){
+    el.innerHTML = '<div class="lib-empty">Todavía no registraste ningún período 🩸</div>';
+    return;
+  }
+  el.innerHTML = '';
+  [...cycleHistory].sort((a, b) => (a.startDate < b.startDate ? 1 : -1)).forEach(entry => {
+    const duration = periodLengthDays(entry);
+    const label = entry.endDate
+      ? `${formatCycleDate(entry.startDate)} – ${formatCycleDate(entry.endDate)} · ${duration} día${duration === 1 ? '' : 's'}`
+      : `${formatCycleDate(entry.startDate)} – en curso`;
+    const row = document.createElement('div');
+    row.className = 'lib-item';
+    row.innerHTML = `
+      <div class="lib-item-info-wrap">
+        <div class="lib-item-icon">🩸</div>
+        <div class="lib-item-info">
+          <div class="lib-item-title">${escapeHtml(label)}</div>
+        </div>
+      </div>
+      <button class="lib-edit" aria-label="Editar entrada del ${formatCycleDate(entry.startDate)}">✏️</button>
+      <button class="lib-del" aria-label="Borrar entrada del ${formatCycleDate(entry.startDate)}">✕</button>
+    `;
+    row.querySelector('.lib-edit').onclick = () => editCycleEntry(entry.id);
+    row.querySelector('.lib-del').onclick = async () => {
+      if (!confirm(`¿Borrar esta entrada del historial (${formatCycleDate(entry.startDate)})?`)) return;
+      await deleteCycleEntry(entry.id);
+    };
+    el.appendChild(row);
+  });
+}
+
+async function renderCycle(){
+  await loadCycleHistory();
+  const wrap = document.getElementById('dayContent');
+  wrap.innerHTML = '';
+
+  const now = new Date();
+  const open = openCycleEntry();
+
+  if (cycleHistory.length){
+    const day = currentCycleDay(cycleHistory, now);
+    const phase = cyclePhase(cycleHistory, now);
+    const nextPeriod = predictNextPeriod(cycleHistory, now);
+    const fertileWindow = predictFertileWindow(cycleHistory, now);
+
+    const hero = document.createElement('div');
+    hero.className = 'bday-hero';
+    hero.style.background = `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), linear-gradient(120deg, var(--pink), var(--pink-deep))`;
+    hero.innerHTML = `
+      <div class="eyebrow">${open ? 'Período en curso' : 'Día del ciclo'}</div>
+      <div class="who">Día ${day}</div>
+      <div class="when">${CYCLE_PHASE_LABEL[phase] || ''}</div>
+      <div class="countdown">🩸 Próximo período estimado: ${formatCycleDate(nextPeriod)}</div>
+      <div class="countdown">🌱 Ventana fértil estimada: ${fertileWindow ? `${formatCycleDate(fertileWindow.start)} – ${formatCycleDate(fertileWindow.end)}` : '—'}</div>
+    `;
+    wrap.appendChild(hero);
+
+    const analysisTitle = document.createElement('div');
+    analysisTitle.className = 'lib-section-title';
+    analysisTitle.textContent = 'Análisis';
+    wrap.appendChild(analysisTitle);
+
+    const closedCount = cycleHistory.filter(e => e.endDate).length;
+    const avgPeriod = averagePeriodLengthDays(cycleHistory);
+    const avgCycle = averageCycleLengthDays(cycleHistory);
+    const stats = document.createElement('div');
+    stats.className = 'walk-stats';
+    stats.innerHTML = `
+      <div class="walk-stat"><div class="label">Duración de período</div><div class="value">${avgPeriod.toFixed(1)} días</div></div>
+      <div class="walk-stat"><div class="label">Duración de ciclo</div><div class="value">${avgCycle.toFixed(1)} días</div></div>
+    `;
+    wrap.appendChild(stats);
+    // Nota por separado para cada promedio: cada uno se vuelve "real" con
+    // una condición propia y distinta de la del otro — averagePeriodLengthDays
+    // necesita 1+ ciclo CERRADO, averageCycleLengthDays necesita 2+ entradas
+    // en total (abiertas o cerradas, para tener al menos un gap entre
+    // inicios). Con un combo mixto (ej. 1 solo ciclo cargado) una nota única
+    // como "promedio sobre 1 ciclo" mentiría sobre la de ciclo, que en ese
+    // caso sigue siendo el default clínico.
+    const cyclesForAverage = Math.max(0, cycleHistory.length - 1);
+    const periodNoteText = closedCount
+      ? `Duración de período: promedio sobre los últimos ${Math.min(closedCount, 6)} período${Math.min(closedCount, 6) === 1 ? '' : 's'} registrado${Math.min(closedCount, 6) === 1 ? '' : 's'}.`
+      : 'Duración de período: estimado con el promedio clínico general (sin períodos cerrados propios todavía).';
+    const cycleNoteText = cyclesForAverage
+      ? `Duración de ciclo: promedio sobre los últimos ${Math.min(cyclesForAverage, 6)} ciclo${Math.min(cyclesForAverage, 6) === 1 ? '' : 's'} registrado${Math.min(cyclesForAverage, 6) === 1 ? '' : 's'}.`
+      : 'Duración de ciclo: estimado con el promedio clínico general (falta un segundo registro para calcularlo).';
+    const statsNote = document.createElement('div');
+    statsNote.className = 'walk-stats-note';
+    statsNote.innerHTML = `${escapeHtml(periodNoteText)}<br>${escapeHtml(cycleNoteText)}<br>Estimación aproximada de calendario, no reemplaza un método médico.`;
+    wrap.appendChild(statsNote);
+  } else {
+    const empty = document.createElement('div');
+    empty.className = 'lib-empty';
+    empty.textContent = 'Registrá tu primer período para empezar a ver predicciones 🩸';
+    wrap.appendChild(empty);
+  }
+
+  const quickActionBtn = document.createElement('button');
+  quickActionBtn.className = 'lib-add-btn';
+  quickActionBtn.style.marginBottom = '14px';
+  if (open){
+    quickActionBtn.textContent = `✏️ Cerrar período en curso (día ${currentCycleDay(cycleHistory, now)})`;
+    quickActionBtn.onclick = () => editCycleEntry(open.id);
+  } else {
+    quickActionBtn.textContent = '🩸 Inicio del período';
+    quickActionBtn.onclick = startPeriodToday;
+  }
+  wrap.appendChild(quickActionBtn);
+
+  const formTitle = document.createElement('div');
+  formTitle.className = 'lib-section-title';
+  formTitle.textContent = editingCycleId ? 'Editar entrada' : 'Agregar entrada anterior';
+  wrap.appendChild(formTitle);
+
+  const form = document.createElement('div');
+  form.className = 'lib-form';
+  form.innerHTML = `
+    <label for="cycleStartInput">Fecha de inicio</label>
+    <input type="date" id="cycleStartInput">
+    <label for="cycleEndInput">Fecha de fin (opcional, vacío = en curso)</label>
+    <input type="date" id="cycleEndInput">
+    <button class="lib-add-btn" id="cycleFormSubmit">${editingCycleId ? '💾 Guardar cambios' : '+ Agregar al historial'}</button>
+    ${editingCycleId ? '<button class="bday-cancel-btn" id="cycleFormCancel" type="button">Cancelar edición</button>' : ''}
+  `;
+  wrap.appendChild(form);
+  document.getElementById('cycleFormSubmit').onclick = submitCycleForm;
+  if (editingCycleId){
+    document.getElementById('cycleFormCancel').onclick = () => { editingCycleId = null; renderCycle(); };
+    const entry = cycleHistory.find(e => e.id === editingCycleId);
+    if (entry){
+      document.getElementById('cycleStartInput').value = entry.startDate;
+      document.getElementById('cycleEndInput').value = entry.endDate || '';
+    }
+  }
+
+  const listTitle = document.createElement('div');
+  listTitle.className = 'lib-section-title';
+  listTitle.textContent = 'Historial de ciclos';
+  wrap.appendChild(listTitle);
+
+  const list = document.createElement('div');
+  list.id = 'cycleItemsList';
+  wrap.appendChild(list);
+  renderCycleHistoryList();
 }
 
 function totalItems(day){ return day.blocks.reduce((s,b)=>s+b.items.length,0); }
@@ -1692,6 +1935,7 @@ function exportData(){
     routineHistory: localStorage.getItem(STREAK_STORAGE_KEY),
     noticeDays: localStorage.getItem(NOTICE_DAYS_STORAGE_KEY),
     streakMilestone: localStorage.getItem(STREAK_MILESTONE_KEY),
+    cycleHistory: localStorage.getItem(CYCLE_STORAGE_KEY),
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1720,6 +1964,7 @@ function importData(file){
       if (payload.routineHistory) localStorage.setItem(STREAK_STORAGE_KEY, payload.routineHistory);
       if (payload.noticeDays) localStorage.setItem(NOTICE_DAYS_STORAGE_KEY, payload.noticeDays);
       if (payload.streakMilestone) localStorage.setItem(STREAK_MILESTONE_KEY, payload.streakMilestone);
+      if (payload.cycleHistory) localStorage.setItem(CYCLE_STORAGE_KEY, payload.cycleHistory);
       alert('Datos importados correctamente. La página se va a recargar.');
       location.reload();
     }catch(e){

@@ -245,6 +245,7 @@ h1 span{
   text-shadow:0 1px 3px rgba(0,0,0,0.3);
 }
 .tab.bdaytab{ background:#F2E7FF; color:var(--violet-deep); }
+.tab.cycletab{ background:#FFE3EF; color:var(--pink-deep); }
 
 .day-banner{
   border-radius:22px;
@@ -760,6 +761,8 @@ footer{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-s
 }
 .lib-item a{ flex:1; min-width:0; text-decoration:none; display:flex; align-items:center; gap:12px; }
 .lib-item a:focus-visible{ outline:2.5px solid var(--violet-deep); outline-offset:2px; }
+/* Misma fila que .lib-item a, para filas sin link (ej. historial de ciclo). */
+.lib-item .lib-item-info-wrap{ flex:1; min-width:0; display:flex; align-items:center; gap:12px; }
 .lib-item .lib-item-icon{
   width:38px; height:38px; border-radius:11px; flex:0 0 auto;
   display:flex; align-items:center; justify-content:center; font-size:17px; color:#fff;
