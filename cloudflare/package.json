@@ -8,7 +8,7 @@
     "tail": "wrangler tail"
   },
   "devDependencies": {
-    "wrangler": "^4.123.0"
+    "wrangler": "^4.149.0"
   },
   "dependencies": {
     "web-push": "^3.6.7"
